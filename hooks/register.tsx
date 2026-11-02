@@ -4,6 +4,7 @@ import type { BuiltinToolResults, EngineInterface, Register, Timer } from 'claud
 import type { Activity, AgentRun, AgentStatus, Main, Plan, SkillUse, Sp, Task } from '../types'
 import { isPlanPath, keepCompleted, ledgerOwns, ledgerPath, parsePlan, startedOf } from './plan'
 import { addExtra, EMPTY_SP, extraOf, isSpecPath, pathFrom, reach, roleOf, sizeUp, skillName, stageOf, taskNOf, verdictOf, withAt } from './superpowers'
+import { activityOf, isSpPlan, live, pushActivity, shownTasks, spTasks, trimAgents, withStatus } from './state'
 import { activityPanel, agentsPanel, FRAME_MS, mainPanel, skillsPanel, spPanel, SPINNER, tasksPanel } from './view'
 
 const tasks = atom({ plugin: 'task-progress', key: 'tasks' } as const, {} as Record<string, Task>)
@@ -14,23 +15,7 @@ const activity = atom({ plugin: 'task-progress', key: 'activity' } as const, [] 
 const sp = atom({ plugin: 'task-progress', key: 'sp' } as const, EMPTY_SP)
 const updateSp = ($: EngineInterface, patch: (s: Sp) => Sp) => update($, sp, s => patch(withAt({ ...EMPTY_SP, ...s })))
 
-const MAX_AGENTS = 50
-const MAX_ACTIVITY = 10
 const MAX_SKILLS = 30
-/** An agent saved before `status` existed (0.6, kept across a hot reload) reads from its end time */
-export const withStatus = (r: AgentRun): AgentRun => (r.status ? r : { ...r, status: r.endedAt === undefined ? 'running' : 'done' })
-const live = (r: AgentRun) => ['running', 'waiting'].includes(withStatus(r).status)
-// the oldest ended agents go first; running ones always stay
-const trimAgents = (all: Record<string, AgentRun>) => {
-  const ended = Object.entries(all).filter(([, r]) => !live(r)).sort(([, a], [, b]) => a.startedAt - b.startedAt)
-  const drop = new Set(ended.slice(0, Math.max(0, Object.keys(all).length - MAX_AGENTS)).map(([id]) => id))
-  return Object.fromEntries(Object.entries(all).filter(([id]) => !drop.has(id)))
-}
-/** Appends a row with the next id after the kept rows: ids outlive a hot reload, a module counter would not */
-export const pushActivity = (all: Activity[], row: Omit<Activity, 'id'>) => {
-  const id = Math.max(0, ...all.map(a => a.id)) + 1
-  return { id, list: [...all, { ...row, id }].slice(-MAX_ACTIVITY) }
-}
 
 // a failed read keeps what the pane already shows
 const refreshPlan = async ($: EngineInterface, path: string, startedNow?: string) => {
@@ -65,6 +50,8 @@ const DEFAULT_MAIN: Main = {
 }
 const main = atom({ plugin: 'task-progress', key: 'main' } as const, DEFAULT_MAIN)
 
+export { pushActivity, withStatus }
+
 const PANE = 'task-progress'
 const PANE_COLUMNS = 48
 
@@ -90,17 +77,6 @@ const animate = async ($: EngineInterface) => {
   else ticker = void ticker?.cancel()
 }
 
-// a superpowers plan has an SDD ledger beside it; a plan-mode plan has none
-const isSpPlan = (p: Plan | undefined) => !!p?.path && ledgerPath(p.path) !== null
-const spTasks = (p: Plan | undefined) => (isSpPlan(p) ? p!.tasks : [])
-
-// TASKS: todos win, unless all are done and a plan-mode plan still has open work
-const shownTasks = (todos: Task[], p: Plan | undefined) => {
-  const pm = isSpPlan(p) ? [] : (p?.tasks ?? [])
-  const planOpen = pm.some(t => t.status !== 'completed')
-  return todos.some(t => t.status !== 'completed') || (todos.length > 0 && !planOpen) ? todos : pm
-}
-
 const allDone = (list: Task[]) => list.length > 0 && list.every(t => t.status === 'completed')
 // SDD and executing-plans review the whole branch only once every task is done; review skills load mid-plan too
 const reviewReady = (p: Plan | undefined) => !isSpPlan(p) || allDone(p!.tasks)
@@ -116,12 +92,6 @@ const stampDone = async ($: EngineInterface) => {
   const at = await $.clock.now()
   if (tasksDone !== (typeof m?.doneAt === 'number')) await setMain($, () => ({ doneAt: tasksDone ? at : null }))
   if (planDone !== (typeof s?.doneAt === 'number')) await updateSp($, x => ({ ...x, doneAt: planDone ? at : null }))
-}
-
-// `Bash · Run tests`, `Read · plan.ts`: the tool and the most telling input it has
-const activityOf = (e: { tool: string; description?: unknown; file_path?: unknown; pattern?: unknown; command?: unknown }) => {
-  const what = [e.description, e.file_path, e.pattern, e.command].find(x => typeof x === 'string' && x) as string | undefined
-  return what ? `${e.tool} · ${what.slice(what.lastIndexOf('/') + 1)}` : e.tool
 }
 
 const openPane = ($: EngineInterface) => $.ui.open({ id: PANE, title: 'Task Progress', columns: PANE_COLUMNS, rows: 8 })

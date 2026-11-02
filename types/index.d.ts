@@ -67,6 +67,7 @@ declare module 'claude-code' {
       skills: SkillUse[]
       activity: Activity[]
       sp: Sp
+      state: import('../hooks/state').S
     }
   }
 }

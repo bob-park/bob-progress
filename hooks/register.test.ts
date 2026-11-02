@@ -10,8 +10,8 @@ const pane = {
   props: { title: 'Bob Progress', isFocused: false, bodyColumns: 46, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 20 }, view: {} },
 }
 
-/** An agent row's bit and its padding, read as `[^_^]✓ ` */
-const unbit = (t: string) => t.replace(/^(\[\S+\]) ?(\S) +/, '$1$2 ')
+/** An agent row's bit and its padding, read as `▐^_^▌✓ ` */
+const unbit = (t: string) => t.replace(/^(▐\S{3}▌) ?(\S) +/, '$1$2 ')
 
 const todo = (content: string, status: 'pending' | 'in_progress' | 'completed') => ({ content, status, activeForm: `${content}ing` })
 
@@ -217,10 +217,10 @@ test('agents list below the tasks: num, label, model and mm:ss', async ($, on) =
   let ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
   expect(await ui.find({ text: /^AGENTS$/ })).toBeDefined()
   expect(await ui.find({ text: /^  2 running · 0 done$/ })).toBeDefined()
-  const rows = await ui.findAll({ text: /^\[•_•\] ?» +\d: / })
+  const rows = await ui.findAll({ text: /^▐•_•▌ ?» +\d: / })
   expect(rows.map(r => r.text)).toEqual([
-    expect.stringMatching(/^\[•_•\] ?» +2: Review diff -+ Haiku 5\.5 00:42$/),
-    expect.stringMatching(/^\[•_•\] ?» +1: Explore au… -+ Haiku 5\.5 01:23$/),
+    expect.stringMatching(/^▐•_•▌ ?» +2: Review diff -+ Haiku 5\.5 00:42$/),
+    expect.stringMatching(/^▐•_•▌ ?» +1: Explore au… -+ Haiku 5\.5 01:23$/),
   ])
   await ui.unmount()
 
@@ -228,9 +228,9 @@ test('agents list below the tasks: num, label, model and mm:ss', async ($, on) =
   await end('A1')
   await clock.advance(10_000)
   ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
-  expect((await ui.findAll({ text: /^\[\S+\] ?\S +\d: / })).map(r => r.text)).toEqual([
-    expect.stringMatching(/^\[•_•\] ?» +2: Review diff -+ Haiku 5\.5 00:52$/),
-    expect.stringMatching(/^\[\^_\^\]✓ +1: Explore au… -+ Haiku 5\.5 01:23$/),
+  expect((await ui.findAll({ text: /^▐\S{3}▌ ?\S +\d: / })).map(r => r.text)).toEqual([
+    expect.stringMatching(/^▐•_•▌ ?» +2: Review diff -+ Haiku 5\.5 00:52$/),
+    expect.stringMatching(/^▐\^_\^▌✓ +1: Explore au… -+ Haiku 5\.5 01:23$/),
   ])
   await ui.unmount()
 
@@ -239,8 +239,8 @@ test('agents list below the tasks: num, label, model and mm:ss', async ($, on) =
   await $.turn.complete({ answer: '', durationMs: 0, isAborted: false, turnId: 'T', agentId: 'A2', reason: 'error' } as never)
   ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
   expect(await ui.find({ text: /^  0 running · 1 done · 1 failed$/ })).toBeDefined()
-  expect(await ui.find({ text: /^\[x_x\]✗ +2: Review diff / })).toBeDefined()
-  expect(await ui.find({ text: /^\[\^_\^\]✓ +1: Explore au… / })).toBeDefined()
+  expect(await ui.find({ text: /^▐x_x▌✗ +2: Review diff / })).toBeDefined()
+  expect(await ui.find({ text: /^▐\^_\^▌✓ +1: Explore au… / })).toBeDefined()
 })
 
 test('agents show the latest 3 ended ones, and keep at most 50', async ($, on) => {
@@ -255,7 +255,7 @@ test('agents show the latest 3 ended ones, and keep at most 50', async ($, on) =
   }
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
   expect(await ui.find({ text: /^  0 running · 50 done$/ })).toBeDefined()
-  expect((await ui.findAll({ text: /^\[\^_\^\]✓ +\d+: / })).map(r => r.text.split(' -')[0])).toEqual(['[^_^]✓  52: Job 52', '[^_^]✓  51: Job 51', '[^_^]✓  50: Job 50'])
+  expect((await ui.findAll({ text: /^▐\^_\^▌✓ +\d+: / })).map(r => r.text.split(' -')[0])).toEqual(['▐^_^▌✓  52: Job 52', '▐^_^▌✓  51: Job 51', '▐^_^▌✓  50: Job 50'])
 })
 
 test('a TaskCreate task shows its number on the current line', async ($, on) => {
@@ -302,15 +302,15 @@ test('an agent waiting on its background work stays running, and a resumed one r
   await end('A1')
   await end('A2')
   let ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
-  expect(await ui.find({ text: /^\[-_-\]z +1: Scan / })).toBeDefined()
-  expect(await ui.find({ text: /^\[\^_\^\]✓ +2: Lint / })).toBeDefined()
+  expect(await ui.find({ text: /^▐-_-▌z +1: Scan / })).toBeDefined()
+  expect(await ui.find({ text: /^▐\^_\^▌✓ +2: Lint / })).toBeDefined()
   expect(await ui.find({ text: /^  1 running · 1 done$/ })).toBeDefined() // waiting counts as running
   await ui.unmount()
 
   // A2 is woken again: its next step puts it back to running
   for await (const _ of $.turn.step({ agentId: 'A2', model: 'claude-haiku-5-5' } as never)) void _
   ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
-  expect(await ui.find({ text: /^\[•_•\] ?» +2: Lint / })).toBeDefined()
+  expect(await ui.find({ text: /^▐•_•▌ ?» +2: Lint / })).toBeDefined()
 })
 
 test('finish shows on the pipeline until another plan starts a new cycle', async ($, on) => {
@@ -404,11 +404,11 @@ test('SDD agents show by role under superpowers, not under agents', async ($, on
   await $.turn.complete({ ...(sdd('**Task quality:** Needs fixes') as object), agentId: 'R3' } as never)
 
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
-  expect(await ui.find({ text: /^\[•_•\][⚙✲] +impl #4 +Haiku 5\.5 00:00$/ })).toBeDefined()
-  expect(await ui.find({ text: /^\[o_o\]⚠ +review #3 +issues 00:00$/ })).toBeDefined()
+  expect(await ui.find({ text: /^▐•_•▌[⚙✲] +impl #4 +Haiku 5\.5 00:00$/ })).toBeDefined()
+  expect(await ui.find({ text: /^▐o_o▌⚠ +review #3 +issues 00:00$/ })).toBeDefined()
   // AGENTS lists only the plain one, but counts all three
   expect(await ui.find({ text: /^  2 running · 1 done$/ })).toBeDefined()
-  expect(await ui.find({ text: /^\[•_•\] ?» +3: Explore au… / })).toBeDefined()
+  expect(await ui.find({ text: /^▐•_•▌ ?» +3: Explore au… / })).toBeDefined()
   expect(await ui.find({ text: /\d: (Implement|Review) Task/ })).toBeUndefined()
 })
 
@@ -493,7 +493,7 @@ test('timeline nests the plan bar and role agents under execute', async ($, on) 
   expect((await ui.find({ text: /▐▛███▜▌.* 1\/3$/ }))?.text.length).toBe(42) // W - 4: the count sits on the right edge
   expect(await ui.find({ text: /^ 1\/3$/ })).toBeDefined()
   expect(await ui.find({ text: /^  │ $/ })).toBeDefined()
-  expect(await ui.find({ text: /^\[•_•\][⚙✲] +impl #2 +Haiku 5\.5 00:00$/ })).toBeDefined()
+  expect(await ui.find({ text: /^▐•_•▌[⚙✲] +impl #2 +Haiku 5\.5 00:00$/ })).toBeDefined()
   expect(await ui.find({ text: /^○ review$/ })).toBeDefined()
   expect(await ui.find({ text: /^○ finish$/ })).toBeDefined()
 })
@@ -525,12 +525,12 @@ test('a running role agent without a task number stays in view after many tasks'
   await $.agent.spawn({ prompt: 'p', description: 'Review code changes' } as never)
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
   // working first, then the latest spawned
-  expect((await ui.findAll({ text: /^\[\S+\] ?\S +(review|impl) [#A-Z]/ })).map(r => unbit(r.text).split(/ {2,}/)[0])).toEqual([
-    expect.stringMatching(/^\[•_•\]⌕ review Re…$/),
-    '[^_^]✓ review #3',
-    '[^_^]✓ impl #3',
-    '[^_^]✓ review #2',
-    '[^_^]✓ impl #2',
+  expect((await ui.findAll({ text: /^▐\S{3}▌ ?\S +(review|impl) [#A-Z]/ })).map(r => unbit(r.text).split(/ {2,}/)[0])).toEqual([
+    expect.stringMatching(/^▐•_•▌⌕ review Re…$/),
+    '▐^_^▌✓ review #3',
+    '▐^_^▌✓ impl #3',
+    '▐^_^▌✓ review #2',
+    '▐^_^▌✓ impl #2',
   ])
 })
 
@@ -539,7 +539,7 @@ test('agents spawned outside superpowers get no role', async ($, on) => {
   on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'A1' }))
   await $.agent.spawn({ prompt: 'p', description: 'Review diff' } as never)
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
-  expect(await ui.find({ text: /^\[•_•\] ?» +1: Review diff / })).toBeDefined()
+  expect(await ui.find({ text: /^▐•_•▌ ?» +1: Review diff / })).toBeDefined()
 })
 
 test('activity shows alongside open tasks', async ($, on) => {
@@ -569,7 +569,7 @@ test('a review without a task number in its description takes none from its prom
   await $.skill.prompt({ skill: 'superpowers:brainstorming', text: '' })
   await $.agent.spawn({ prompt: 'The plan says: ### Task 3: Parser', description: 'Review spec document' } as never)
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
-  expect(await ui.find({ text: /^\[•_•\] ?⌕ +review Re… / })).toBeDefined() // cut 4 earlier behind the guide
+  expect(await ui.find({ text: /^▐•_•▌ ?⌕ +review Re… / })).toBeDefined() // cut 4 earlier behind the guide
   expect(await ui.find({ text: /review #3/ })).toBeUndefined()
 })
 
@@ -580,7 +580,7 @@ test('after finish, a plain review agent lists under AGENTS again', async ($, on
   await $.skill.prompt({ skill: 'superpowers:finishing-a-development-branch', text: '' })
   await $.agent.spawn({ prompt: 'p', description: 'Review diff' } as never)
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
-  expect(await ui.find({ text: /^\[•_•\] ?» +1: Review diff / })).toBeDefined()
+  expect(await ui.find({ text: /^▐•_•▌ ?» +1: Review diff / })).toBeDefined()
 })
 
 test("SDD's whole-branch reviewer reaches the review stage", async ($, on) => {
@@ -608,7 +608,7 @@ test("7.0.0 brainstorming's builder check shows as a review under superpowers", 
   await $.agent.spawn({ prompt: 'You are a talented software engineer…', description: 'Builder check' } as never)
   await $.turn.complete({ ...(sdd('nothing important left') as object), agentId: 'B1' } as never)
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
-  expect(await ui.find({ text: /^\[\^_\^\]✓ +review Bui… +approved 00:00$/ })).toBeDefined()
+  expect(await ui.find({ text: /^▐\^_\^▌✓ +review Bui… +approved 00:00$/ })).toBeDefined()
   expect(await ui.find({ text: /^AGENTS$/ })).toBeUndefined()
 })
 
@@ -717,22 +717,22 @@ test('each stage keeps its agents: issues first, 5 rows, then … more', async (
   await clock.advance(1000)
   await $.skill.prompt({ skill: 'superpowers:finishing-a-development-branch', text: '' })
   const ui = await $.ui.mount({ ...pane, props: { ...pane.props, scroll: { offset: 0, bodyRows: 60 } }, surface: 'terminal' } as never)
-  const rows = (await ui.findAll({ type: 'Text', text: /^(. (brainstorm|spec|plan|execute|review|finish)\b|\[\S+\] ?\S +(impl|review) |  … \d+ more$)/ })).map(r => unbit(r.text).trim().split(/ {2,}/)[0])
+  const rows = (await ui.findAll({ type: 'Text', text: /^(. (brainstorm|spec|plan|execute|review|finish)\b|▐\S{3}▌ ?\S +(impl|review) |  … \d+ more$)/ })).map(r => unbit(r.text).trim().split(/ {2,}/)[0])
   expect(rows).toEqual([
     '✓ brainstorm',
-    '[^_^]✓ review Bui…',
+    '▐^_^▌✓ review Bui…',
     '✓ spec',
     '✓ plan',
     expect.stringMatching(/^✓ execute █+ 6\/6 /),
     '✓ execute', // the execute row's label part
-    '[o_o]⚠ review #1',
-    '[^_^]✓ review #6',
-    '[^_^]✓ impl #6',
-    '[^_^]✓ review #5',
-    '[^_^]✓ impl #5',
+    '▐o_o▌⚠ review #1',
+    '▐^_^▌✓ review #6',
+    '▐^_^▌✓ impl #6',
+    '▐^_^▌✓ review #5',
+    '▐^_^▌✓ impl #5',
     '… 7 more',
     '✓ review',
-    expect.stringMatching(/^\[\^_\^\]✓ review Re/),
+    expect.stringMatching(/^▐\^_\^▌✓ review Re/),
     expect.stringMatching(/^. finish$/),
   ])
 })
@@ -899,7 +899,8 @@ test('a plain agent under AGENTS draws as a green bit', async ($, on) => {
   on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'A1' }))
   await $.agent.spawn({ prompt: 'p', description: 'Explore auth' } as never)
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
-  expect((await ui.find({ text: /^\[•_•\] ?» *$/ }))?.props.color).toBe('#1D9E75')
+  expect((await ui.find({ text: /^▐$/ }))?.props.color).toBe('#1D9E75')
+  expect((await ui.findAll({ text: /^•_•$/ }))[0]?.props.backgroundColor).toBe('#D97757')
 })
 
 test('a plain agent under AGENTS draws as a green-hatted Clawd on desktop', async ($, on) => {

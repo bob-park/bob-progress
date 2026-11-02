@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import type { Seg } from './characters'
 import { barSvg, BOT_W, botFrame, botKind, botStatus, botSvg, STAGE_W, stageFrame, stageSvg } from './characters'
 import { ORDER } from './superpowers'
 
@@ -29,15 +30,18 @@ test('stageFrame: feet swap every 5 frames, props every 3', () => {
   expect(stageFrame('execute', 3, true)[1]![1]).not.toEqual(stageFrame('execute', 0, true)[1]![1])
 })
 
-test('botFrame: one glyph per status, BOT_W cells wide', () => {
-  expect(botFrame('impl', 0, 'running').text.trimEnd()).toBe('[•_•]⚙')
-  expect(botFrame('impl', 3, 'running').text.trimEnd()).toBe('[•_•]✲')
-  expect(botFrame('review', 0, 'waiting').text.trimEnd()).toBe('[-_-]z')
-  expect(botFrame('fix', 0, 'done').text.trimEnd()).toBe('[^_^]✓')
-  expect(botFrame('agent', 0, 'failed').text.trimEnd()).toBe('[x_x]✗')
-  expect(botFrame('review', 0, 'issues').text.trimEnd()).toBe('[o_o]⚠')
+test('botFrame: a one-line little Clawd, face on clay, BOT_W cells, one face per status', () => {
+  const txt = (s: Seg[]) => s.map(x => x.text).join('')
+  expect(txt(botFrame('impl', 0, 'running')).trimEnd()).toBe('▐•_•▌⚙')
+  expect(txt(botFrame('impl', 3, 'running')).trimEnd()).toBe('▐•_•▌✲')
+  expect(txt(botFrame('review', 0, 'waiting')).trimEnd()).toBe('▐-_-▌z')
+  expect(txt(botFrame('fix', 0, 'done')).trimEnd()).toBe('▐^_^▌✓')
+  expect(txt(botFrame('agent', 0, 'failed')).trimEnd()).toBe('▐x_x▌✗')
+  expect(txt(botFrame('review', 0, 'issues')).trimEnd()).toBe('▐o_o▌⚠')
+  expect(botFrame('impl', 0, 'running')[1]).toEqual({ text: '•_•', color: '#1F1E1D', bg: '#D97757' })
+  expect(botFrame('fix', 0, 'done')[3]!.color).toBe('success')
   for (const st of ['waiting', 'done', 'failed', 'issues'] as const) expect(botFrame('impl', 7, st)).toEqual(botFrame('impl', 0, st))
-  for (const k of ['impl', 'review', 'fix', 'agent'] as const) for (let f = 0; f < 6; f++) expect([...botFrame(k, f, 'running').text].length).toBe(BOT_W)
+  for (const k of ['impl', 'review', 'fix', 'agent'] as const) for (let f = 0; f < 6; f++) expect([...txt(botFrame(k, f, 'running'))].length).toBe(BOT_W)
 })
 
 test('botKind and botStatus read role, phase and verdict; failed beats issues', () => {

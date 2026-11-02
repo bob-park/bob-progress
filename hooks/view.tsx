@@ -263,10 +263,11 @@ export const agentRow = (ui: UI, r: AgentRun, left: string, right: string, fill:
         <Text {...tone}>{line.trimStart()}</Text>
       </Box>
     )
-  const bot = botFrame(kind, v.f, status)
   return (
     <Text key={String(r.n)} {...tone}>
-      <Text color={bot.color}>{bot.text}</Text>
+      {botFrame(kind, v.f, status).map((b, i) => (
+        <Text key={`b${i}`} color={b.color} backgroundColor={b.bg}>{b.text}</Text>
+      ))}
       {line}
     </Text>
   )

@@ -1,6 +1,6 @@
 import type { AgentRun, Stage } from '../types'
 
-export type Seg = { text: string; color: string }
+export type Seg = { text: string; color: string; bg?: string }
 export type BotKind = 'impl' | 'review' | 'fix' | 'agent'
 export type BotStatus = 'running' | 'waiting' | 'done' | 'failed' | 'issues'
 
@@ -43,18 +43,19 @@ export const stageFrame = (stage: Stage, f: number, on: boolean): Seg[][] => {
   return body.map((b, i) => [b, { text: p[i]!, color: s.pc }])
 }
 
-const BOT: Record<BotKind, { run: string[]; c: string }> = {
-  impl: { run: ['[•_•]⚙', '[•_•]✲'], c: '#378ADD' },
-  review: { run: ['[•_•]⌕', '[•_•] ⌕'], c: '#E0A030' },
-  fix: { run: ['[•_•]✚', '[•‸•]✚'], c: '#E5534B' },
-  agent: { run: ['[•_•]»', '[•_•] »'], c: '#1D9E75' },
+const BOT: Record<BotKind, { tool: [string, string]; c: string }> = {
+  impl: { tool: ['⚙', '✲'], c: '#378ADD' },
+  review: { tool: ['⌕', '⌕'], c: '#E0A030' },
+  fix: { tool: ['✚', '✚'], c: '#E5534B' },
+  agent: { tool: ['»', '»'], c: '#1D9E75' },
 }
-const pad = (t: string) => t + ' '.repeat(BOT_W - [...t].length)
+const FACE: Record<BotStatus, string> = { running: '•_•', waiting: '-_-', done: '^_^', failed: 'x_x', issues: 'o_o' }
 
-export const botFrame = (kind: BotKind, f: number, status: BotStatus): Seg => {
+/** A one-line little Clawd: `▐•_•▌⚙`, the face on clay, its edges and tool in the role's colour */
+export const botFrame = (kind: BotKind, f: number, status: BotStatus): Seg[] => {
   const b = BOT[kind]
-  const [t, c] = status === 'done' ? ['[^_^]✓', 'green'] : status === 'failed' ? ['[x_x]✗', 'red'] : status === 'issues' ? ['[o_o]⚠', '#E0A030'] : status === 'waiting' ? ['[-_-]z', b.c] : [b.run[Math.floor(f / 3) % 2]!, b.c]
-  return { text: pad(t), color: c }
+  const [tool, c] = status === 'done' ? ['✓', 'success'] : status === 'failed' ? ['✗', 'error'] : status === 'issues' ? ['⚠', 'warning'] : status === 'waiting' ? ['z', b.c] : [b.tool[Math.floor(f / 3) % 2]!, b.c]
+  return [{ text: '▐', color: b.c }, { text: FACE[status], color: '#1F1E1D', bg: '#D97757' }, { text: '▌', color: b.c }, { text: `${tool} `, color: c }]
 }
 
 // ---------- desktop pixel sprites (from the mockup's layer/clawd/STAGES/ROLES/bot) ----------

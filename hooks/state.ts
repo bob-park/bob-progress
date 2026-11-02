@@ -1,7 +1,7 @@
 import type { Activity, AgentRun, Main, Plan, SkillUse, Sp, Task } from '../types'
 import type { Ev } from './ev'
-import { ledgerPath } from './plan'
-import { EMPTY_SP } from './superpowers'
+import { filesOf, isPlanPath, keepCompleted, ledgerOwns, ledgerPath, logOf, parsePlan, startedOf } from './plan'
+import { addExtra, EMPTY_SP, extraOf, isSpecPath, pathFrom, reach, roleOf, sizeUp, stageOf, taskNOf, verdictOf } from './superpowers'
 
 /** `text`: the plan file as last read; `ledger`: its SDD ledger; `edited`: the last plan task a code edit touched */
 export type PlanState = { path: string; text: string; ledger?: string; tasks: Task[]; started?: string; edited?: string; warned: boolean }
@@ -46,6 +46,74 @@ export const shownTasks = (todos: Task[], p: Plan | undefined) => {
   return todos.some(t => t.status !== 'completed') || (todos.length > 0 && !planOpen) ? todos : pm
 }
 
+export const WARN =
+  "task-progress: this edit isn't tied to a plan task. Before working on a task, run `task-start <plan> <N>` (executing-plans) or ledger `Task <N>: dispatched` (subagent-driven-development)."
+
+/** A main-loop call that changed files: Edit/Write/NotebookEdit, or Bash */
+export const isEdit = (ev: Ev): ev is Extract<Ev, { t: 'tool.end' }> => ev.t === 'tool.end' && !ev.agentId && ev.ok && ev.edited.length > 0
+
+/** The plan's tasks running now */
+export const currentOf = (p: PlanState) => p.tasks.filter(t => t.status === 'in_progress').map(t => t.n ?? '')
+
+const allDone = (list: Task[]) => list.length > 0 && list.every(t => t.status === 'completed')
+// SDD and executing-plans review the whole branch only once every task is done; review skills load mid-plan too
+const reviewReady = (p: Plan) => !isSpPlan(p) || allDone(p.tasks)
+const base = (p: string) => p.slice(p.lastIndexOf('/') + 1)
+const isOpen = (p: PlanState, n: string | undefined) => !!n && p.tasks.some(t => t.n === n && t.status !== 'completed')
+// rules 1–3: a dispatch, a task-start or an edit names the task, not just "the first open one"
+const tied = (p: PlanState) => logOf(p.ledger, 'dispatched').some(n => isOpen(p, n)) || isOpen(p, p.started) || isOpen(p, p.edited)
+// `/abs/repo/hooks/a.ts` is `hooks/a.ts`: paths match by trailing segments
+const samePath = (a: string, b: string) => {
+  const [x, y] = [a, b].map(p => p.replace(/^\.\//, ''))
+  return x === y || x!.endsWith(`/${y}`) || y!.endsWith(`/${x}`)
+}
+const isWorkflowFile = (path: string) => isPlanPath(path) || isSpecPath(path) || /\/\.superpowers\/sdd\/[^/]+\/progress\.md$/.test(path)
+
+// same plan: done stays done
+const reparse = (p: PlanState): PlanState => (p.text ? { ...p, tasks: keepCompleted(p.tasks, parsePlan(p.text, p.ledger, p.started, p.edited)) } : p)
+
+/** Rule 3: the lowest open task listing an edited file; an unlisted file leaves it alone */
+const editedTask = (p: PlanState, edited: string[]) => {
+  const files = filesOf(p.text)
+  return p.tasks.find(t => isOpen(p, t.n) && files[t.n!]?.some(f => edited.some(e => samePath(e, f))))?.n
+}
+
+const planAfter = (s: S, ev: Extract<Ev, { t: 'tool.end' }>): S => {
+  let { plan, sp } = s
+  const { input } = ev
+  const path = ev.planFile ?? (['Write', 'Edit', 'Read'].includes(ev.tool) && input.file_path && isPlanPath(input.file_path) ? input.file_path : undefined)
+  if (path) {
+    const fresh = !plan.path || base(plan.path) !== base(path)
+    plan = fresh ? { path, text: '', tasks: [], warned: false } : { ...plan, path }
+    // a superpowers plan reaches the plan stage; one already reached is only re-read
+    if (!ev.planFile && ledgerPath(path) && (fresh || !sp.stages.includes('plan'))) sp = reach(sp, 'plan', ev.at)
+  }
+  if ((ev.tool === 'Write' || ev.tool === 'Edit') && input.file_path && isSpecPath(input.file_path)) sp = reach(sp, 'spec', ev.at)
+  const started = ev.tool === 'Bash' && plan.path ? startedOf(input.command ?? '', plan.path) : undefined
+  if (started) plan = reparse({ ...plan, started })
+  const edited = isEdit(ev) ? editedTask(plan, ev.edited) : undefined
+  if (edited) plan = reparse({ ...plan, edited })
+  return { ...s, plan, sp }
+}
+
+const fileAfter = (s: S, ev: Extract<Ev, { t: 'file' }>): S => {
+  const { plan } = s
+  if (plan.path && ev.path === ledgerPath(plan.path))
+    return { ...s, plan: reparse({ ...plan, ledger: ledgerOwns(plan.path, ev.text) ? ev.text : undefined }) }
+  // the same plan maybe read from the main checkout
+  if (isPlanPath(ev.path) && (!plan.path || base(plan.path) === base(ev.path))) return { ...s, plan: reparse({ ...plan, path: ev.path, text: ev.text }) }
+  return s
+}
+
+// the moment each list became all done; cleared once something is open again
+const stampDone = (s: S, at: number): S => {
+  const tasksDone = allDone(shownTasks(Object.values(s.todos), s.plan))
+  const planDone = allDone(spTasks(s.plan))
+  if (tasksDone !== (s.main.doneAt !== null)) s = { ...s, main: { ...s.main, doneAt: tasksDone ? at : null } }
+  if (planDone !== (s.sp.doneAt !== null)) s = { ...s, sp: { ...s.sp, doneAt: planDone ? at : null } }
+  return s
+}
+
 const todosAfter = (todos: Record<string, Task>, ev: Extract<Ev, { t: 'tool.end' }>): Record<string, Task> => {
   const { input } = ev
   if (ev.tool === 'TodoWrite' && input.todos)
@@ -62,7 +130,16 @@ const todosAfter = (todos: Record<string, Task>, ev: Extract<Ev, { t: 'tool.end'
   return todos
 }
 
-export const step = (s: S, ev: Ev): { s: S; effects: Effect[] } => ({ s: next(s, ev), effects: [] })
+export const step = (s0: S, ev: Ev): { s: S; effects: Effect[] } => {
+  let s = stampDone(next(s0, ev), ev.at)
+  const p = s.plan
+  // a gap ends once rules 1–3 name a task again
+  if (p.warned && tied(p)) s = { ...s, plan: { ...p, warned: false } }
+  const gap =
+    isEdit(ev) && s.sp.current === 'execute' && isSpPlan(p) && p.tasks.some(t => t.status !== 'completed') && !tied(p) && ev.edited.some(f => !isWorkflowFile(f))
+  if (!gap || p.warned) return { s, effects: [] }
+  return { s: { ...s, plan: { ...p, warned: true } }, effects: [{ kind: 'warn', toolId: ev.id, text: WARN }] }
+}
 
 const next = (s: S, ev: Ev): S => {
   const main = (patch: Partial<Main>): S => ({ ...s, main: { ...s.main, ...patch } })
@@ -74,10 +151,17 @@ const next = (s: S, ev: Ev): S => {
     case 'turn.start':
       return ev.agentId ? s : main({ isRunning: true })
     case 'turn.end': {
-      if (!ev.agentId) return main({ isRunning: false })
+      if (!ev.agentId) {
+        // brainstorming says out loud which path it takes
+        const path = pathFrom(ev.answer)
+        return { ...main({ isRunning: false }), ...(path && s.sp.current === 'brainstorm' ? { sp: { ...s.sp, path: sizeUp(s.sp.path, path) } } : {}) }
+      }
       // an agent waiting on its own background work ends its turn but isn't done
       const status = ev.waiting ? 'waiting' : ev.failed ? 'failed' : 'done'
-      return agent(ev.agentId, r => ({ ...r, status, ...(ev.waiting ? {} : { endedAt: ev.at }) }))
+      return agent(ev.agentId, r => {
+        const verdict = r.role === 'review' && !ev.waiting ? verdictOf(ev.answer) : undefined
+        return { ...r, status, ...(ev.waiting ? {} : { endedAt: ev.at }), ...(verdict ? { verdict } : {}) }
+      })
     }
     case 'step':
       if (!ev.agentId) return main({ model: ev.model, effort: ev.effort ?? s.main.effort, steps: s.main.steps + 1 })
@@ -92,12 +176,26 @@ const next = (s: S, ev: Ev): S => {
     case 'agent.spawn': {
       // next after the highest still listed: one left running keeps its number
       const n = Math.max(0, ...Object.values(s.agents).map(r => r.n)) + 1
-      const run: AgentRun = { n, label: ev.description || ev.subagentType, model: ev.model, startedAt: ev.at, status: 'running' }
-      return { ...s, agents: trimAgents({ ...s.agents, [ev.agentId]: run }) }
+      // while superpowers runs (until it finishes), its implementers and reviewers get a role
+      const role = s.sp.stages.length && s.sp.current !== 'finish' ? roleOf(ev.description) : undefined
+      // the description alone: prompts quote plan text, Task numbers included
+      const taskN = role ? taskNOf(ev.description) : undefined
+      const run: AgentRun = { n, label: ev.description || ev.subagentType, model: ev.model, startedAt: ev.at, status: 'running', ...(role ? { role } : {}), ...(taskN ? { taskN } : {}) }
+      // SDD's whole-branch review has no task: execution is over
+      const sp = role === 'review' && !taskN && s.sp.current === 'execute' && reviewReady(s.plan) ? reach(s.sp, 'review', ev.at) : s.sp
+      return { ...s, sp, agents: trimAgents({ ...s.agents, [ev.agentId]: run }) }
     }
-    case 'skill':
+    case 'skill': {
       // the same skill twice in a row is one entry
-      return s.skills.at(-1)?.name === ev.name ? s : { ...s, skills: [...s.skills, { name: ev.name, at: ev.at }].slice(-MAX_SKILLS) }
+      const skills = s.skills.at(-1)?.name === ev.name ? s.skills : [...s.skills, { name: ev.name, at: ev.at }].slice(-MAX_SKILLS)
+      const stage = stageOf(ev.name)
+      const extra = extraOf(ev.name)
+      // a skill a subagent loads never moves the stage
+      const sp = stage && !ev.fromSubagent && (stage !== 'review' || reviewReady(s.plan)) ? reach(s.sp, stage, ev.at) : extra ? addExtra(s.sp, extra) : s.sp
+      return { ...s, skills, sp }
+    }
+    case 'file':
+      return fileAfter(s, ev)
     case 'tool.start':
       if (ev.agentId) return s
       return { ...s, activity: pushActivity(s.activity, { at: ev.at, label: activityOf({ tool: ev.tool, ...ev.input }), status: 'running' }).list }
@@ -109,7 +207,8 @@ const next = (s: S, ev: Ev): S => {
         const i = activity.findLastIndex(a => a.status === 'running' && a.label === label)
         if (i >= 0) activity = activity.map((a, j) => (j === i ? { ...a, status: ev.ok ? 'ok' : 'error' } : a))
       }
-      return { ...s, activity, todos: ev.ok ? todosAfter(s.todos, ev) : s.todos }
+      const done = { ...s, activity, todos: ev.ok ? todosAfter(s.todos, ev) : s.todos }
+      return ev.ok && !ev.agentId ? planAfter(done, ev) : done
     }
     default:
       return s

@@ -114,7 +114,8 @@ const CSS = `<style>.tp g{transform-box:fill-box}.tp .spark{opacity:0}
 .tp.on .grow{transform-origin:50% 100%;animation:grow 2s steps(1) infinite}@keyframes grow{0%{transform:scaleY(.25)}33%{transform:scaleY(.6)}66%{transform:scaleY(1)}}
 .tp.on .wave{transform-origin:0% 50%;animation:wave .25s steps(1) infinite}@keyframes wave{50%{transform:skewY(15deg)}}
 .tp.on .c1{animation:blink .8s steps(1) infinite}.tp.on .c2{animation:blink .8s steps(1) infinite .4s}
-.tp.on .hop{animation:hop .4s steps(1) infinite}@keyframes hop{50%{transform:translateY(-1px)}}.tp.on .ant{animation:blink .8s steps(1) infinite}
+.tp.on .hop{animation:hop .4s steps(1) infinite}@keyframes hop{50%{transform:translateY(-1px)}}
+.tp.on .tool{transform-origin:0% 100%;animation:wig .6s steps(1) infinite}@keyframes wig{50%{transform:rotate(-20deg)}}
 @media (prefers-reduced-motion: reduce){.tp.on *{animation:none!important}}</style>`
 
 const svgDoc = (body: string, w: number, h: number, scale: number, on: boolean) =>
@@ -122,7 +123,7 @@ const svgDoc = (body: string, w: number, h: number, scale: number, on: boolean) 
 
 /** Standalone SVG of a stage's Clawd; moves only when on */
 export const stageSvg = (stage: Stage, scale: number, on: boolean) =>
-  ({ source: svgDoc(STAGE_PX[stage], 25, 15, scale, on), width: 25 * scale, height: 15 * scale, alt: `${stage} · ${STAGE_NAME[stage]}` })
+  ({ source: svgDoc(STAGE_PX[stage], 25, 15, scale, on), width: 25 * scale, height: 15 * scale, alt: `${stage} · ${STAGE_NAME[stage]}`, ...(on ? { isInteractive: true as const } : {}) })
 
 const ROLE_PX: Record<BotKind, { color: string; tool: string[] }> = {
   impl: { color: '#378ADD', tool: ['..G', '.GG', 'G..'] },
@@ -130,19 +131,24 @@ const ROLE_PX: Record<BotKind, { color: string; tool: string[] }> = {
   fix: { color: '#E5534B', tool: ['.W.', 'WWW', '.W.'] },
   agent: { color: '#1D9E75', tool: [] },
 }
-// Marks drawn where the tool sits (x 10, y 3)
+// Marks drawn where the tool sits (x 15, y 2)
 const MARK: Partial<Record<BotStatus, string[]>> = {
   done: ['..g', 'g.g', '.g.'],
   failed: ['R.R', '.R.', 'R.R'],
   issues: ['.Y.', '.Y.', '...', '.Y.'],
 }
-const BOT_PX = ['....a.....', '....w.....', '..XXXXXX..', '.XXXXXXXX.', '.XKXXXXKX.', '.XXXXXXXX.', '..XXXXXX..']
+// From the desktop-pane mockup's A: a little Clawd, its hat ('H') in the role's colour; eyes 3x2 at (3,2) and (8,2)
+const MINI = ['....HHHHHH....', '...HHHHHHHH...', '..##########..', '..##########..', '##############', '..##########..', '..##########..']
+const MINI_LEGS = ['..#.#....#.#..', '..#.#....#.#..']
+const EYES: Record<BotStatus, string[]> = { running: ['.K.', '.K.'], waiting: ['...', 'KKK'], done: ['.K.', 'K.K'], failed: ['K.K', '.K.'], issues: ['KKK', 'K.K'] }
 
-/** Standalone SVG of a sub-agent bot "Bit"; hops only while running */
+/** Standalone SVG of a sub-agent's little Clawd; hops and wiggles its tool only while running */
 export const botSvg = (kind: BotKind, scale: number, status: BotStatus) => {
   const r = ROLE_PX[kind]
-  const rows = status === 'waiting' ? BOT_PX.map((l, i) => (i === 4 ? '.XKKXXKKX.' : l)) : BOT_PX
+  const on = status === 'running'
   const mark = MARK[status]
-  const body = `<g class="hop">${layer([rows[0]!], 0, 0, 'ant', { a: r.color })}${layer(rows.slice(1), 0, 1, '', { X: r.color })}${mark ? layer(mark, 10, mark.length > 3 ? 2 : 3) : layer(r.tool, 10, 3)}</g>${layer(['..w....w..'], 0, 8)}`
-  return { source: svgDoc(body, 14, 10, scale, status === 'running'), width: 14 * scale, height: 10 * scale, alt: `${kind} ${status}` }
+  const face = layer(EYES[status], 3, 2) + layer(EYES[status], 8, 2)
+  const side = mark ? layer(mark, 15, mark.length > 3 ? 1 : 2) : layer(r.tool, 15, 2, 'tool')
+  const body = `<g class="hop">${layer(MINI, 0, 0, '', { H: r.color })}${face}${side}</g>${layer(MINI_LEGS, 0, MINI.length)}`
+  return { source: svgDoc(body, 18, 10, scale, on), width: 18 * scale, height: 10 * scale, alt: `${kind} ${status}`, ...(on ? { isInteractive: true as const } : {}) }
 }

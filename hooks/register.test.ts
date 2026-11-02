@@ -897,3 +897,13 @@ test('a plain agent under AGENTS draws as a green bit', async ($, on) => {
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
   expect((await ui.find({ text: /^\[•_•\] ?» *$/ }))?.props.color).toBe('#1D9E75')
 })
+
+test('a plain agent under AGENTS draws as a green-hatted Clawd on desktop', async ($, on) => {
+  mock.clock(on)
+  on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'A1' }))
+  await $.agent.spawn({ prompt: 'p', description: 'Explore auth' } as never)
+  const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
+  const svg = (await ui.findAll({ type: 'Svg' })).find(s => s.props.alt === 'agent running')
+  expect(String(svg?.props.source)).toContain('#1D9E75')
+  expect(String(svg?.props.source)).toContain('#D97757')
+})

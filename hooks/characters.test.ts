@@ -68,7 +68,7 @@ test('botSvg: moves only while running; status marks for done, failed, issues', 
   for (const st of ['waiting', 'done', 'failed', 'issues'] as const) expect(botSvg('impl', 2, st).source).toContain('<svg class="tp"')
   expect(botSvg('impl', 2, 'done').source).not.toEqual(botSvg('impl', 2, 'failed').source)
   expect(botSvg('impl', 2, 'issues').source).not.toEqual(botSvg('impl', 2, 'done').source)
-  expect([botSvg('fix', 2, 'done').width, botSvg('fix', 2, 'done').height]).toEqual([28, 20])
+  expect([botSvg('fix', 2, 'done').width, botSvg('fix', 2, 'done').height]).toEqual([36, 20])
 })
 
 test('sprite CSS is scoped under the root class, so an inlined svg leaks nothing', () => {
@@ -77,4 +77,20 @@ test('sprite CSS is scoped under the root class, so an inlined svg leaks nothing
   const sels = css.replace(/@keyframes \w+\{(?:[^{}]*\{[^{}]*\})*\}/g, '').replace(/@media[^{]*\{/g, '').match(/[^{}]+(?=\{)/g)!
   expect(sels.length).toBeGreaterThan(10)
   for (const sel of sels) for (const part of sel.split(',')) expect(part.trim()).toMatch(/^\.tp[ .]/)
+})
+
+test('botSvg: a little Clawd in its role colour, one face per status', () => {
+  expect(botSvg('impl', 2, 'running').source).toContain('#D97757')
+  expect(botSvg('impl', 2, 'running').source).toContain('#378ADD')
+  expect(botSvg('agent', 2, 'done').source).toContain('#1D9E75')
+  const faces = new Set((['running', 'waiting', 'done', 'failed', 'issues'] as const).map(s => botSvg('impl', 2, s).source))
+  expect(faces.size).toBe(5)
+  expect(botSvg('review', 2, 'running')).toEqual(botSvg('review', 2, 'running'))
+})
+
+test('only moving sprites draw as an interactive frame', () => {
+  expect(botSvg('impl', 2, 'running').isInteractive).toBe(true)
+  for (const st of ['waiting', 'done', 'failed', 'issues'] as const) expect(botSvg('impl', 2, st).isInteractive).toBeUndefined()
+  expect(stageSvg('execute', 4, true).isInteractive).toBe(true)
+  expect(stageSvg('execute', 4, false).isInteractive).toBeUndefined()
 })

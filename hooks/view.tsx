@@ -359,14 +359,13 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
     ]
     if (Svg)
       return (
-        <Box key={stage} flexDirection="row" gap={1} paddingY={1}>
+        <Box key={stage} flexDirection="row" gap={1}>
           <Svg {...stageSvg(stage, 4, v.busy)} />
           <Box flexDirection="column" width={rw}>{right}</Box>
         </Box>
       )
     return (
-      // a row above and below sets the card apart from the stage rows
-      <Box key={stage} flexDirection="column" paddingY={1}>
+      <Box key={stage} flexDirection="column">
         {stageFrame(stage, v.f, v.busy).map(([body, prop], i) => (
           <Text key={String(i)} wrap="truncate">
             <Text color={body!.color}>{body!.text}</Text>
@@ -424,7 +423,8 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
       </Box>
       <Box flexDirection="column">
         {pipeline(sp).map(s => (
-          <Box key={s.stage} flexDirection="column">
+          // the running stage, its card and agents, sits a row apart from the stages around it
+          <Box key={s.stage} flexDirection="column" {...(s.state === 'current' ? { paddingY: 1 } : {})}>
             {row(s)}
             {s.stage === 'execute' && plan.length > 0 && !carded(s) ? nested('now', spNow(ui, plan, sp.doneAt, runs, inner)) : null}
             {rolesOf(s.stage)}

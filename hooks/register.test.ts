@@ -777,7 +777,7 @@ test('main panel shows the version', async ($, on) => {
   mock.clock(on)
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
   // a Box's text holds its children's: the Text itself carries the dim
-  expect((await ui.find({ type: 'Text', text: /v1\.2\.2/ }))?.props.dimColor).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /v1\.2\.3/ }))?.props.dimColor).toBe(true)
 })
 
 test('the main header fits a narrow pane: the version drops when it does not fit', async ($, on) => {
@@ -788,7 +788,7 @@ test('the main header fits a narrow pane: the version drops when it does not fit
     const ui = await $.ui.mount({ ...pane, props: { ...pane.props, bodyColumns: cols }, surface: 'terminal' } as never)
     const head = await ui.find({ type: 'Box', text: /· main.*○ idle( +v[\d.]+)?$/ })
     expect(head?.text.length).toBeLessThanOrEqual(cols - 4)
-    expect(!!(await ui.find({ type: 'Text', text: /v1\.2\.2/ }))).toBe(shown)
+    expect(!!(await ui.find({ type: 'Text', text: /v1\.2\.3/ }))).toBe(shown)
     await ui.unmount()
   }
 })
@@ -1003,4 +1003,16 @@ test('on desktop each agent row gets a hairline above and below (xs: 0 rows in t
   await $.agent.spawn({ prompt: 'p', description: 'Explore auth' } as never)
   const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
   expect((await ui.findAll({ type: 'Box' })).filter(b => b.props.paddingY === 'xs' && /1: Explore/.test(b.text) && !/AGENTS/.test(b.text))).toHaveLength(1)
+})
+
+test('the running stage, card and its agents together, gets a row above and below', async ($, on) => {
+  await toExecute($, on)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...pane, surface } as never)
+    const padded = (await ui.findAll({ type: 'Box' })).filter(b => b.props.paddingY === 1)
+    expect(padded).toHaveLength(1)
+    expect(padded[0]!.text).toContain('망치 대장장이')
+    expect(padded[0]!.text).toMatch(/impl #2/)
+    await ui.unmount()
+  }
 })

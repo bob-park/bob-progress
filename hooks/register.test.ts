@@ -490,7 +490,7 @@ test('timeline nests the plan bar and role agents under execute', async ($, on) 
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
   // the card: the stage and its time right of the character, the bar below
   expect((await ui.find({ text: /^[●⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] execute +\d\d:\d\d$/ }))?.text.length).toBe(28) // W - 4 - character 12 - gap 2
-  expect((await ui.find({ text: /▐▛███▜▌.* 1\/3$/ }))?.text.length).toBe(42) // W - 4: the count sits on the right edge
+  expect((await ui.find({ text: /▝▜█████▛▘.* 1\/3$/ }))?.text.length).toBe(42) // W - 4: the count sits on the right edge
   expect(await ui.find({ text: /^ 1\/3$/ })).toBeDefined()
   expect(await ui.find({ text: /^  │ $/ })).toBeDefined()
   expect(await ui.find({ text: /^▐•_•▌[⚙✲] +impl #2 +Haiku 5\.5 00:00$/ })).toBeDefined()
@@ -951,4 +951,15 @@ test('on desktop the bar row is spaced by its gap alone, no padding spaces', asy
   const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
   expect(await ui.find({ type: 'Text', text: /^✓ execute$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^\d\/3 \d\d:\d\d$/ })).toBeDefined()
+})
+
+test('the stage card opens with its nickname, execute too, then head, bar and task', async ($, on) => {
+  await toExecute($, on)
+  let ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
+  expect((await ui.find({ text: /▄███▄/ }))?.text).toContain('망치 대장장이')
+  expect((await ui.find({ text: /▐▛███▜▌/ }))?.text).toMatch(/execute/)
+  for (const t of await ui.findAll({ type: 'Text' })) expect([...t.text].length).toBeLessThanOrEqual(42)
+  await ui.unmount()
+  ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
+  expect((await ui.find({ type: 'Text', text: /^망치 대장장이$/ }))?.props.bold).toBe(true)
 })

@@ -342,14 +342,11 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
     const rw = v.W - 4 - STAGE_W - 2
     const total = plan.length
     const withPlan = stage === 'execute' && total > 0
+    // the nickname heads the card, then the stage, and on execute its bar and what runs now
     const right = [
+      <Text key="name" bold wrap="truncate">{STAGE_NAME[stage]}</Text>,
       <Text key="head" color="yellow" bold wrap="truncate">{time ? lineUp(mark.current, stage, time, rw + 4, ' ') : `${mark.current} ${stage}`}</Text>,
-      withPlan ? (
-        barLine(ui, 'bar', [], plan, Math.max(3, rw - ` ${total}/${total}`.length), [], v)
-      ) : (
-        <Text key="name" bold wrap="truncate">{STAGE_NAME[stage]}</Text>
-      ),
-      withPlan ? spNow(ui, plan, sp.doneAt, runs, { ...v, W: rw + 4 }) : null,
+      ...(withPlan ? [barLine(ui, 'bar', [], plan, Math.max(3, rw - ` ${total}/${total}`.length), [], v), spNow(ui, plan, sp.doneAt, runs, { ...v, W: rw + 4 })] : []),
     ]
     if (Svg)
       return (

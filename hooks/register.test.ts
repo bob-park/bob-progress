@@ -42,7 +42,8 @@ test('tasks panel shows done/total next to the bar and the current step below', 
     expect(await ui.find({ text: /^ · 33%$/ })).toBeDefined()
     if (surface === 'terminal') expect((await ui.find({ text: /^▓+$/ }))?.props.color).toBe('yellow')
     else {
-      expect((await ui.findAll({ type: 'Svg' })).filter(s => s.props.alt === '1/3')).toHaveLength(1)
+      expect((await ui.findAll({ type: 'Box' })).filter(b => b.props.backgroundColor).map(b => b.props.backgroundColor)).toEqual(['success', 'warning', 'inactive'])
+      expect((await ui.findAll({ type: 'Svg' })).filter(s => /^\d+\/\d+$/.test(String(s.props.alt)))).toHaveLength(0)
       expect(await ui.find({ text: /[█▓░]/ })).toBeUndefined()
     }
     expect(await ui.find({ text: /^▸ Building$/ })).toBeDefined()
@@ -913,11 +914,12 @@ test('a plain agent under AGENTS draws as a green-hatted Clawd on desktop', asyn
   expect(String(svg?.props.source)).toContain('#D97757')
 })
 
-test('on desktop the execute bar is an Svg that fits the row, on a wide or a narrow pane', async ($, on) => {
+test('on desktop the execute bar is coloured boxes that fit the row, on a wide or a narrow pane', async ($, on) => {
   await toExecute($, on)
   for (const bodyColumns of [46, 34]) {
     const ui = await $.ui.mount({ ...pane, props: { ...pane.props, bodyColumns }, surface: 'desktop' } as never)
-    expect((await ui.findAll({ type: 'Svg' })).filter(s => /^\d+\/3$/.test(String(s.props.alt)))).toHaveLength(1)
+    expect((await ui.findAll({ type: 'Box' })).filter(b => b.props.backgroundColor).length).toBeGreaterThan(0)
+    expect((await ui.findAll({ type: 'Svg' })).filter(s => /^\d+\/3$/.test(String(s.props.alt)))).toHaveLength(0)
     expect(await ui.find({ text: /[█▓░]/ })).toBeUndefined()
     expect(await ui.find({ text: /\d\/3/ })).toBeDefined()
     await ui.unmount()
@@ -962,4 +964,20 @@ test('the stage card opens with its nickname, execute too, then head, bar and ta
   await ui.unmount()
   ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
   expect((await ui.find({ type: 'Text', text: /^망치 대장장이$/ }))?.props.bold).toBe(true)
+})
+
+test('on desktop a bar not started or all done draws one coloured box', async ($, on) => {
+  mock.clock(on)
+  on('tool.call', () => ({ result: { oldTodos: [], newTodos: [] } }) as never)
+  const write = (todos: ReturnType<typeof todo>[]) => $.tool.call({ tool: 'TodoWrite', todos })
+  const fills = async () => {
+    const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
+    const got = (await ui.findAll({ type: 'Box' })).filter(b => b.props.backgroundColor).map(b => b.props.backgroundColor)
+    await ui.unmount()
+    return got
+  }
+  await write([todo('a', 'pending'), todo('b', 'pending')])
+  expect(await fills()).toEqual(['inactive'])
+  await write([todo('a', 'completed'), todo('b', 'completed')])
+  expect(await fills()).toEqual(['success'])
 })

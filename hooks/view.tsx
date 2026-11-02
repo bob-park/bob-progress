@@ -1,7 +1,7 @@
 import type { EngineInterface } from 'claude-code'
 
 import type { Activity, AgentRun, Main, Sp, Stage, Task } from '../types'
-import { barSvg, BOT_W, botFrame, botKind, botStatus, botSvg, phaseOf, STAGE_NAME, STAGE_W, stageFrame, stageSvg } from './characters'
+import { BOT_W, botFrame, botKind, botStatus, botSvg, phaseOf, STAGE_NAME, STAGE_W, stageFrame, stageSvg } from './characters'
 import { fitTail, pipeline, stageOfRun, stageTimes } from './superpowers'
 import type { Step } from './superpowers'
 
@@ -143,7 +143,7 @@ const planBar = ({ Text }: UI, list: Task[], barW: number, v: Frame) => {
   ]
 }
 
-/** A row with the plan bar: the terminal draws its cells inline; a surface with Svg stretches an Svg bar between `before` and the count */
+/** A row with the plan bar: the terminal draws its cells inline; a surface with Svg stretches coloured boxes between `before` and the count */
 const barLine = (ui: UI, key: string, before: JSX.Element[], list: Task[], barW: number, after: JSX.Element[], v: Frame) => {
   const { Box, Text } = ui
   const Svg = svgOf(ui, v)
@@ -160,8 +160,13 @@ const barLine = (ui: UI, key: string, before: JSX.Element[], list: Task[], barW:
   return (
     <Box key={key} flexDirection="row" gap={1} alignItems="center">
       {before.length > 0 ? <Text>{before}</Text> : null}
-      <Box flexGrow={1}>
-        <Svg {...barSvg(done, active, list.length, v.busy)} />
+      <Box flexGrow={1} flexDirection="row" height={1}>
+        {/* coloured boxes share the row by count, so the bar always fits and follows the theme */}
+        {[
+          ['done', done, 'success'],
+          ['active', active, 'warning'],
+          ['todo', list.length - done - active, 'inactive'],
+        ].map(([k, n, c]) => (Number(n) > 0 ? <Box key={String(k)} flexGrow={Number(n)} backgroundColor={String(c)} /> : null))}
       </Box>
       <Text wrap="truncate">
         <Text bold color="blue">{`${done}/${list.length}`}</Text>

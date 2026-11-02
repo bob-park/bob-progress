@@ -153,22 +153,3 @@ export const botSvg = (kind: BotKind, scale: number, status: BotStatus) => {
   const body = `<g class="hop">${layer(MINI, 0, 0, '', { H: r.color })}${face}${side}</g>${layer(MINI_LEGS, 0, MINI.length)}`
   return { source: svgDoc(body, 18, 10, scale, on), width: 18 * scale, height: 10 * scale, alt: `${kind} ${status}`, ...(on ? { isInteractive: true as const } : {}) }
 }
-
-const BAR = { done: '#5fbf8f', active: '#f2c94c', todo: '#3a3833', hi: '#fff3c4' }
-const r2 = (n: number) => Math.round(n * 100) / 100
-
-/** The plan bar for surfaces that draw Svg: done, active and todo by share, stretched to its box; a bright band sweeps the active part while it works */
-export const barSvg = (done: number, active: number, total: number, on: boolean) => {
-  const t = Math.max(1, total)
-  const d = r2((done / t) * 100), a = r2((active / t) * 100), rest = r2(100 - d - a)
-  const hiW = Math.min(4, a)
-  // a part no wider than the band has nowhere to sweep: drawn still, so no frame
-  const moving = on && a > hiW
-  const rect = (x: number, w: number, fill: string, cls = '') => (w > 0 ? `<rect${cls ? ` class="${cls}"` : ''} x="${x}" y="0" width="${w}" height="6" fill="${fill}"/>` : '')
-  const css = moving
-    ? `<style>.tp.on .sw{animation:sw 1s steps(10) infinite}@keyframes sw{to{transform:translateX(${r2(a - hiW)}px)}}@media (prefers-reduced-motion: reduce){.tp.on *{animation:none!important}}</style>`
-    : ''
-  const body = rect(0, d, BAR.done) + rect(d, a, BAR.active) + rect(r2(d + a), rest, BAR.todo) + (moving ? rect(d, hiW, BAR.hi, 'sw') : '')
-  const source = `<svg class="tp${moving ? ' on' : ''}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 6" preserveAspectRatio="none" width="100%" height="10" shape-rendering="crispEdges">${css}${body}</svg>`
-  return { source, height: 10, alt: `${done}/${total}`, ...(moving ? { isInteractive: true as const } : {}) }
-}

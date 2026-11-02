@@ -1,15 +1,18 @@
 import type { EngineInterface } from 'claude-code'
 
 import type { Activity, AgentRun, Main, Sp, Stage, Task } from '../types'
-import { phaseOf } from './characters'
+import { BOT_W, botFrame, botKind, botStatus, botSvg, phaseOf, STAGE_NAME, STAGE_W, stageFrame, stageSvg } from './characters'
 import { fitTail, pipeline, stageOfRun, stageTimes } from './superpowers'
 import type { Step } from './superpowers'
 
 /** `$.ui.resolve(e)`: the surface's Box, Text, ... */
 export type UI = ReturnType<EngineInterface['ui']['resolve']>
 
-/** What every section draws with: the body width, the clock and whether anything works */
-export type Frame = { W: number; f: number; spin: string; busy: boolean; now: number }
+/** What every section draws with: the body width, the clock, whether anything works and whether the surface draws Svg */
+export type Frame = { W: number; f: number; spin: string; busy: boolean; now: number; px: boolean }
+
+/** The surface's Svg when it draws one; every table carries the name (the terminal's draws nothing), so `px` decides */
+const svgOf = (ui: UI, v: Frame) => (v.px && 'Svg' in ui ? ui.Svg : undefined)
 
 export { phaseOf }
 
@@ -218,15 +221,31 @@ export const tasksPanel = (ui: UI, list: Task[], doneAt: number | null, v: Frame
 
 // ---- agents: running ones first, the latest on top, then the latest ended ones
 const ENDED_SHOWN = 3
-const ICON = { waiting: '⏸', done: '✓', failed: '✗' } as const
 const COLOR = { running: 'yellow', waiting: 'cyan', done: undefined, failed: 'red' } as const
 
-/** `⠹ 1: label --- Model mm:ss`; an ended row keeps its final time */
-export const agentRow = ({ Text }: UI, r: AgentRun, left: string, right: string, fill: string, v: Frame, icon?: string) => (
-  <Text key={String(r.n)} color={COLOR[r.status]} dimColor={r.status === 'done'} wrap="truncate">
-    {lineUp(icon ?? (r.status === 'running' ? v.spin : ICON[r.status]), left, right, v.W, fill)}
-  </Text>
-)
+/** `[•_•]⚙ 1: label --- Model mm:ss`, the bit as wide as before the icon was; an ended row keeps its final time */
+export const agentRow = (ui: UI, r: AgentRun, left: string, right: string, fill: string, v: Frame) => {
+  const { Box, Text } = ui
+  const Svg = svgOf(ui, v)
+  const kind = botKind(r)
+  const status = botStatus(r)
+  const line = lineUp('', left, right, v.W - (BOT_W - 1), fill)
+  const tone = { color: COLOR[r.status], dimColor: r.status === 'done', wrap: 'truncate' as const }
+  if (Svg)
+    return (
+      <Box key={String(r.n)} flexDirection="row" gap={1}>
+        <Svg {...botSvg(kind, 2, status)} />
+        <Text {...tone}>{line.trimStart()}</Text>
+      </Box>
+    )
+  const bot = botFrame(kind, v.f, status)
+  return (
+    <Text key={String(r.n)} {...tone}>
+      <Text color={bot.color}>{bot.text}</Text>
+      {line}
+    </Text>
+  )
+}
 
 export const agentsPanel = (ui: UI, all: AgentRun[], v: Frame) => {
   const { Box, Text } = ui
@@ -250,9 +269,12 @@ export const agentsPanel = (ui: UI, all: AgentRun[], v: Frame) => {
 
 // ---- superpowers: path badge, then a timeline: a row per stage with its time; the plan sits on execute, its agents under the stage they started in
 const ROLES_SHOWN = 5
+/** Below this the terminal draws the current stage as a plain row */
+export const STAGE_CARD_MIN_W = 40
 const STAGE_COLOR = { done: 'green', current: 'yellow', todo: undefined } as const
 export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame) => {
   const { Box, Text } = ui
+  const Svg = svgOf(ui, v)
   const mark = { done: '✓', current: v.busy ? v.spin : '●', todo: '○' }
   const times = stageTimes(sp, v.now)
   // nested rows draw 4 narrower behind the guide
@@ -280,14 +302,61 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
           ` ${r.verdict ? (r.verdict === 'ok' ? 'approved' : 'issues') : prettyModel(r.model)} ${mmss((r.endedAt ?? v.now) - r.startedAt)}`,
           ' ',
           inner,
-          r.verdict === 'issues' ? '⚠' : undefined,
         ),
       ),
     )
     const rest = mine.length - rows.length
     return rest > 0 ? [...rows, nested(`more${stage}`, <Text dimColor>{`  … ${rest} more`}</Text>)] : rows
   }
-  const row = ({ stage, state }: Step) => {
+  const carded = ({ state }: Step) => state === 'current' && (Svg !== undefined || v.W >= STAGE_CARD_MIN_W)
+  // the current stage: its character on the left, the stage, its plan bar or name and what runs now on the right
+  const card = ({ stage }: Step) => {
+    const ms = times[stage]
+    const time = ms === undefined ? '' : ` ${dur(ms)}`
+    const rw = v.W - 4 - STAGE_W - 2
+    const total = plan.length
+    const withPlan = stage === 'execute' && total > 0
+    const right = [
+      <Text key="head" color="yellow" bold wrap="truncate">{time ? lineUp(mark.current, stage, time, rw + 4, ' ') : `${mark.current} ${stage}`}</Text>,
+      withPlan ? (
+        <Text key="bar" wrap="truncate">{planBar(ui, plan, Math.max(3, rw - ` ${total}/${total}`.length), v)}</Text>
+      ) : (
+        <Text key="name" dimColor>{STAGE_NAME[stage]}</Text>
+      ),
+      withPlan ? spNow(ui, plan, sp.doneAt, runs, { ...v, W: rw + 4 }) : null,
+    ]
+    if (Svg)
+      return (
+        <Box key={stage} flexDirection="row" gap={1}>
+          <Svg {...stageSvg(stage, 4, v.busy)} />
+          <Box flexDirection="column" width={rw}>{right}</Box>
+        </Box>
+      )
+    return (
+      <Box key={stage} flexDirection="column">
+        {stageFrame(stage, v.f, v.busy).map(([body, prop], i) => (
+          <Text key={String(i)} wrap="truncate">
+            <Text color={body!.color}>{body!.text}</Text>
+            <Text color={prop!.color}>{prop!.text}</Text>
+            {right[i] ? <Text>{'  '}{right[i]}</Text> : null}
+          </Text>
+        ))}
+      </Box>
+    )
+  }
+  const row = (s: Step) => {
+    if (carded(s)) return card(s)
+    const line = plainRow(s)
+    return Svg && s.state === 'done' ? (
+      <Box key={s.stage} flexDirection="row" gap={1}>
+        <Svg {...stageSvg(s.stage, 1, false)} />
+        {line}
+      </Box>
+    ) : (
+      line
+    )
+  }
+  const plainRow = ({ stage, state }: Step) => {
     const ms = times[stage]
     const time = ms === undefined ? '' : ` ${dur(ms)}`
     const color = STAGE_COLOR[state]
@@ -317,7 +386,7 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
       </Box>
       {pipeline(sp).flatMap(s => [
         row(s),
-        ...(s.stage === 'execute' && plan.length > 0 ? [nested('now', spNow(ui, plan, sp.doneAt, runs, inner))] : []),
+        ...(s.stage === 'execute' && plan.length > 0 && !carded(s) ? [nested('now', spNow(ui, plan, sp.doneAt, runs, inner))] : []),
         ...rolesOf(s.stage),
       ])}
       {sp.extras.length > 0 ? <Text dimColor wrap="truncate">{sp.extras.map(x => `+ ${x}`).join('  ')}</Text> : null}

@@ -107,14 +107,14 @@ describe('check', () => {
   })
 
   test('the vee-app shape: nothing to report, the edit is linked', () => {
-    const plan = '### Task 1: Seed\n**Files:**\n- Modify: `src/seed.ts`\n- [ ] a\n### Task 2: Docs\n**Files:**\n- Modify: `AGENTS.md`\n- [ ] b\n'
+    const plan = '### Task 1: Seed\n**Files:** none (scratchpad screenshots only)\n- [ ] a\n### Task 2: Docs\n**Files:** Modify `AGENTS.md` (Always list + new section)\n- [ ] b\n'
     const r = check([...planned(plan), skill, ledger('Task 1: Ruling: skip seeding\n'), ...call('b', 'Bash', { command: "sed -i '' 's/x/y/' AGENTS.md" }, ['/r/AGENTS.md'])])
-    expect(r).toEqual({ violations: [], linked: 1, edits: 1 })
+    expect(r).toEqual({ violations: [], linked: 1, edits: 1, warns: 0 })
   })
 
   test('an unlinked edit with no warning in its gap is I1; the warning covers the gap', () => {
     const evs = [...planned(TEXT), skill, ...call('e', 'Edit', { file_path: '/r/x.ts' }, ['/r/x.ts']), ...call('f', 'Edit', { file_path: '/r/y.ts' }, ['/r/y.ts'])]
-    expect(check(evs)).toEqual({ violations: [], linked: 0, edits: 2 })
+    expect(check(evs)).toEqual({ violations: [], linked: 0, edits: 2, warns: 1 })
     const mute = (s: typeof INIT, ev: Ev) => ({ ...step(s, ev), effects: [] })
     expect(check(evs, mute).violations).toEqual([
       { kind: 'I1', at: 5 },
@@ -157,7 +157,7 @@ describe('replay', () => {
       if (out.skipped) return void console.log(`${name} skipped: ${out.skipped}`)
       const r = check(out.evs)
       const pct = r.edits ? Math.round((100 * r.linked) / r.edits) : 100
-      console.log(`${name} ${r.linked}/${r.edits} (${pct}%)`)
+      console.log(`${name} ${r.linked}/${r.edits} (${pct}%) warns ${r.warns}`)
       if (r.violations.length) throw new Error(r.violations.map(v => `${v.kind}@${v.at}`).join(' '))
     })
   }

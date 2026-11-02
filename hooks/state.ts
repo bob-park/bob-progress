@@ -47,6 +47,20 @@ export const shownTasks = (todos: Task[], p: Plan | undefined) => {
 
 // a quote, a separator or redirect, or a bare word
 const TOKEN = /'([^']*)'|"([^"]*)"|(&&|\|\|?|;|\n|\d*>>?&?|&>>?)|([^\s'";&|<>]+)/g
+/** The command without heredoc bodies: their text is data, not redirects. The `<<` line itself stays */
+const withoutHeredocs = (command: string) => {
+  const out: string[] = []
+  let tag: string | undefined
+  for (const line of command.split('\n')) {
+    if (tag !== undefined) {
+      if (line.trim() === tag) tag = undefined
+      continue
+    }
+    out.push(line)
+    tag = /(?<!<)<<-?\s*['"]?(\w+)['"]?/.exec(line)?.[1]
+  }
+  return out.join('\n')
+}
 /** The files a Bash call changed: the engine's `bashEditDiff`, else `sed -i`, `>`, `>>` and `tee` targets in the command */
 export const editedOf = (command: string, result: unknown): string[] => {
   const changed = (result as { bashEditDiff?: { changedFiles?: unknown } } | null | undefined)?.bashEditDiff?.changedFiles
@@ -70,7 +84,7 @@ export const editedOf = (command: string, result: unknown): string[] => {
     // without -e the first word is the script
     out.push(...(script ? pos : pos.slice(1)))
   }
-  for (const [, sq, dq, op, w] of command.matchAll(TOKEN)) {
+  for (const [, sq, dq, op, w] of withoutHeredocs(command).matchAll(TOKEN)) {
     if (op !== undefined) {
       if (/^(&&|\|\|?|;|\n)$/.test(op)) flush()
       else redirect = op
@@ -83,7 +97,8 @@ export const editedOf = (command: string, result: unknown): string[] => {
     redirect = undefined
   }
   flush()
-  return out.filter(f => f && f !== '/dev/null')
+  // `"$W/progress.md"`: a variable is no path to match
+  return out.filter(f => f && f !== '/dev/null' && !f.includes('$'))
 }
 
 export const WARN =
@@ -107,7 +122,8 @@ const samePath = (a: string, b: string) => {
   const [x, y] = [a, b].map(p => p.replace(/^\.\//, ''))
   return x === y || x!.endsWith(`/${y}`) || y!.endsWith(`/${x}`)
 }
-export const isWorkflowFile = (path: string) => isPlanPath(path) || isSpecPath(path) || /\/\.superpowers\/sdd\/[^/]+\/progress\.md$/.test(path)
+// the plan, a spec, or anything in the superpowers workspace (ledger, briefs), relative or absolute
+export const isWorkflowFile = (path: string) => isPlanPath(path) || isSpecPath(path) || /(^|\/)\.superpowers\//.test(path)
 
 // same plan: done stays done
 const reparse = (p: PlanState): PlanState => (p.text ? { ...p, tasks: keepCompleted(p.tasks, parsePlan(p.text, p.ledger, p.started, p.edited)) } : p)

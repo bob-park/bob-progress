@@ -22,14 +22,15 @@ const LEDGER_LINE = /^[\s>*+-]*(?:\*\*)?Task\s+(\d+[a-z]?):\s*(complete(?=\s*(?:
 export const logOf = (ledger: string | undefined, word: 'complete' | 'dispatched') =>
   [...(ledger ?? '').matchAll(LEDGER_LINE)].filter(m => m[2]!.toLowerCase() === word).map(m => m[1]!.toLowerCase())
 
-/** Each task's `**Files:**` paths (backticks on `Create:`/`Modify:`/`Test:` lines), `:123-145` dropped */
+/** Each task's `**Files:**` paths (backticks on `Create`/`Modify`/`Test` lines, inline after `**Files:**` too), `:123-145` dropped */
 export const filesOf = (text: string) => {
   const files: Record<string, string[]> = {}
   let n: string | undefined
   for (const line of planLines(text)) {
     const h = TASK_HEADING.exec(line)
     if (h) n = h[1]!.toLowerCase()
-    else if (n && /^[\s>*+-]*(?:\*\*)?(?:Create|Modify|Test)(?:\*\*)?:/.test(line))
+    // `- Create: \`a\``, `**Files:** Modify \`a\` (…)`, `Modify (scope): \`a\``
+    else if (n && /^[\s>*+-]*(?:\*\*)?(?:Files:\*\*\s*)?(?:Create|Modify|Test)\b/.test(line))
       // a backtick without `.` or `/` names a type or symbol, not a file
       files[n] = [...(files[n] ?? []), ...[...line.matchAll(/`([^`]+)`/g)].map(m => m[1]!.replace(/:\d+(-\d+)?$/, '')).filter(p => /[./]/.test(p))]
   }

@@ -770,6 +770,19 @@ test('main panel shows the version', async ($, on) => {
   expect((await ui.find({ type: 'Text', text: /v1\.0\.0/ }))?.props.dimColor).toBe(true)
 })
 
+test('the main header fits a narrow pane: the version drops when it does not fit', async ($, on) => {
+  mock.clock(on)
+  on('turn.step', async function* () { return { answer: '', toolUses: [] } as never })
+  for await (const _ of $.turn.step({ model: 'claude-sonnet-4-6' } as never)) void _
+  for (const [cols, shown] of [[30, false], [46, true]] as const) {
+    const ui = await $.ui.mount({ ...pane, props: { ...pane.props, bodyColumns: cols }, surface: 'terminal' } as never)
+    const head = await ui.find({ type: 'Box', text: /· main.*○ idle( +v[\d.]+)?$/ })
+    expect(head?.text.length).toBeLessThanOrEqual(cols - 4)
+    expect(!!(await ui.find({ type: 'Text', text: /v1\.0\.0/ }))).toBe(shown)
+    await ui.unmount()
+  }
+})
+
 const TWO = '### Task 1: Code\n**Files:**\n- Modify: `src/a.ts`\n- [ ] a\n### Task 2: Docs\n**Files:**\n- Modify: `AGENTS.md`\n- [ ] b\n'
 const executing = async (...[$, on, result]: [...Parameters<TestBody>, unknown]) => {
   mock.clock(on)

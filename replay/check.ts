@@ -18,6 +18,7 @@ export const check = (evs: Ev[], fold: Fold = step) => {
   let linked = 0
   let edits = 0
   let warned = false
+  let warns = 0
   // per plan basename: the completed count last seen, the plan state last held, the ledger's completions
   const done: Record<string, number> = {}
   const last: Record<string, S['plan']> = {}
@@ -29,7 +30,7 @@ export const check = (evs: Ev[], fold: Fold = step) => {
       ;({ s, effects } = fold(s, ev))
     } catch {
       violations.push({ kind: 'I4', at: i })
-      return { violations, linked, edits }
+      return { violations, linked, edits, warns }
     }
     const p = s.plan
     const ledger = ev.t === 'file' ? LEDGER.exec(ev.path) : null
@@ -37,7 +38,7 @@ export const check = (evs: Ev[], fold: Fold = step) => {
 
     // I1: an execute-stage main-loop edit is tied by rules 1–3, or its gap got the warning
     if (tied(p)) warned = false
-    if (effects.some(e => e.kind === 'warn')) warned = true
+    if (effects.some(e => e.kind === 'warn')) (warned = true), warns++
     if (isEdit(ev) && s.sp.current === 'execute' && isSpPlan(p) && p.tasks.some(t => t.status !== 'completed') && ev.edited.some(f => !isWorkflowFile(f))) {
       edits++
       if (tied(p)) linked++
@@ -62,5 +63,5 @@ export const check = (evs: Ev[], fold: Fold = step) => {
     const proven = ticked.filter(t => t.status === 'completed' || logged[k]?.has(t.n ?? ''))
     if (doneOf(p) !== proven.length) violations.push({ kind: 'I3', at: evs.length - 1 })
   }
-  return { violations, linked, edits }
+  return { violations, linked, edits, warns }
 }

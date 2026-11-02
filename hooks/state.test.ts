@@ -204,7 +204,7 @@ test('an untied edit in execute warns once per gap', () => {
 })
 
 test('the vee-app shape: a Bash edit of a listed file is current, no warning', () => {
-  const plan = '### Task 1: Seed\n**Files:**\n- Modify: `src/seed.ts`\n- [ ] a\n### Task 2: Docs\n**Files:**\n- Modify: `AGENTS.md`\n- [ ] b\n'
+  const plan = '### Task 1: Seed\n**Files:** none (scratchpad screenshots only)\n- [ ] a\n### Task 2: Docs\n**Files:** Modify `AGENTS.md` (Always list + new section)\n- [ ] b\n'
   const r = run([...planned(plan), skill('executing-plans'), ledger('Task 1: Ruling: skip seeding\n'), ...bash("sed -i '' 's/x/y/' AGENTS.md", ['/r/AGENTS.md'])])
   expect(currentOf(r.s.plan)).toEqual(['2'])
   expect(r.effects).toEqual([])
@@ -300,4 +300,33 @@ test('editedOf: bashEditDiff wins, else sed -i, > , >> and tee targets', () => {
   expect(editedOf('echo x | tee -a notes.md', {})).toEqual(['notes.md'])
   expect(editedOf('make 2> err.log &> all.log > /dev/null', {})).toEqual([])
   expect(editedOf('sed -n 1p a.md', {})).toEqual([])
+})
+
+test('filesOf reads the inline `**Files:**` form', () => {
+  expect(filesOf('### Task 1: A\n**Files:** Modify `AGENTS.md` (x)\n### Task 2: B\n**Files:** Create `a.ts`, `b/c.md`\n### Task 3: C\nModify (scope): `x.ts`\n')).toEqual({
+    '1': ['AGENTS.md'],
+    '2': ['a.ts', 'b/c.md'],
+    '3': ['x.ts'],
+  })
+})
+
+test('editedOf: a target naming a variable is not a path', () => {
+  expect(editedOf('echo x >> "$W/progress.md"', {})).toEqual([])
+})
+
+test('editedOf: heredoc bodies are not commands; the redirect on the << line counts', () => {
+  expect(editedOf("cat > src/a.ts <<'EOF'\nexport const f = (x) => x\nif (a > b) {}\nEOF", {})).toEqual(['src/a.ts'])
+  expect(editedOf("cat <<< 'x' > a.md\necho y > b.md", {})).toEqual(['a.md', 'b.md'])
+})
+
+test('a Bash edit of a relative .superpowers/ workspace file in execute does not warn', () => {
+  const exec = run([...planned(), skill('executing-plans')]).s
+  expect(run(bash('echo x > .superpowers/sdd/x/task-2-brief.md', ['.superpowers/sdd/x/task-2-brief.md']), exec).effects).toEqual([])
+})
+
+test('the SDD shape: a ledger write through a variable, then the ledger read, gives no warning', () => {
+  const cmd = 'echo "- Task 2: dispatched" >> "$W/progress.md"'
+  const r = run([...planned(), skill('subagent-driven-development'), ledger('Task 1: complete\n'), ...bash(cmd, editedOf(cmd, {})), ledger('Task 1: complete\n- Task 2: dispatched\n')])
+  expect(r.effects).toEqual([])
+  expect(currentOf(r.s.plan)).toEqual(['2'])
 })

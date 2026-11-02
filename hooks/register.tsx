@@ -10,9 +10,9 @@ import { VERSION } from './version'
 import { activityPanel, agentsPanel, FRAME_MS, mainPanel, skillsPanel, spPanel, SPINNER, tasksPanel } from './view'
 
 // the one atom: every hook folds an event into it; the 0.9 keys are never read
-const state = atom({ plugin: 'task-progress', key: 'state' } as const, INIT)
+const state = atom({ plugin: 'bob-progress', key: 'state' } as const, INIT)
 
-const PANE = 'task-progress'
+const PANE = 'bob-progress'
 const PANE_COLUMNS = 48
 
 // while anything works the pane redraws on a clock so the spinner and shimmer move
@@ -53,7 +53,7 @@ const usageOf = (u: Pick<Usage, 'context' | 'cost' | 'rateLimits'>) =>
 // ponytail: one counter for all agents, a main-loop skill loaded while a subagent's loads is skipped too; key by agent if that shows up
 let subagentSkills = 0
 
-const openPane = ($: EngineInterface) => $.ui.open({ id: PANE, title: 'Task Progress', columns: PANE_COLUMNS, rows: 8 })
+const openPane = ($: EngineInterface) => $.ui.open({ id: PANE, title: 'Bob Progress', columns: PANE_COLUMNS, rows: 8 })
 
 // re-read the active plan and its ledger: SDD's scripts append from Bash; a failed plan read keeps what the pane shows
 const readPlan = async ($: EngineInterface) => {
@@ -69,7 +69,7 @@ const readPlan = async ($: EngineInterface) => {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'task-progress', description: 'Open or close the task progress pane', argumentHint: '[close]' })
+    await $.command.register({ name: 'bob-progress', description: 'Open or close the Bob Progress pane', argumentHint: '[close]' })
     // a host without usage (headless, SDK) just starts without it
     const u = await $.session.usage().catch(() => null)
     if (u) await emit($, usageOf(u))
@@ -77,13 +77,13 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'task-progress' }, async ($, e) => {
+  on('command.run', { command: 'bob-progress' }, async ($, e) => {
     if (e.args.trim() === 'close') {
       await $.ui.close({ id: PANE })
-      return { text: 'Task progress closed.' }
+      return { text: 'Bob Progress closed.' }
     }
     const opened = await openPane($)
-    return { text: opened.isPlaced ? 'Task progress opened.' : `Task progress is not shown yet: ${opened.reason}` }
+    return { text: opened.isPlaced ? 'Bob Progress opened.' : `Bob Progress is not shown yet: ${opened.reason}` }
   })
 
   on('classic.UserPromptSubmit', async ($, e, next) => {
@@ -172,7 +172,7 @@ export const register: Register = on => {
     const ui = $.ui.resolve(e)
     const { Box } = ui
     const f = frame()
-    const v = { W: Math.max(30, e.props.bodyColumns), f, spin: SPINNER[f % SPINNER.length]!, busy: view.busy, now }
+    const v = { W: Math.max(30, e.props.bodyColumns), f, spin: SPINNER[f % SPINNER.length]!, busy: view.busy, now, px: e.surface !== 'terminal' }
     return (
       <Box flexDirection="column">
         {mainPanel(ui, view.main, v, VERSION)}

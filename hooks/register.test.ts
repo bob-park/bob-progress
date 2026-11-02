@@ -503,7 +503,7 @@ test('a narrow pane cuts labels, keeps times', async ($, on) => {
   on('skill.prompt', () => ({ text: '' }))
   for (const skill of ['brainstorming', 'writing-plans', 'subagent-driven-development']) await $.skill.prompt({ skill: `superpowers:${skill}`, text: '' })
   const ui = await $.ui.mount({ ...pane, props: { ...pane.props, bodyColumns: 20 }, surface: 'terminal' } as never)
-  const rows = await ui.findAll({ text: /^[✓○●⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] (brainstorm|spec|plan|execute|review|finish)/ })
+  const rows = await ui.findAll({ type: 'Text', text: /^[✓○●⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] (brainstorm|spec|plan|execute|review|finish)/ })
   expect(rows.length).toBe(6)
   for (const r of rows) expect(r.text.length).toBeLessThanOrEqual(26)
   expect(await ui.find({ text: /^✓ brainstorm +\d\d:\d\d$/ })).toBeDefined()
@@ -717,7 +717,7 @@ test('each stage keeps its agents: issues first, 5 rows, then … more', async (
   await clock.advance(1000)
   await $.skill.prompt({ skill: 'superpowers:finishing-a-development-branch', text: '' })
   const ui = await $.ui.mount({ ...pane, props: { ...pane.props, scroll: { offset: 0, bodyRows: 60 } }, surface: 'terminal' } as never)
-  const rows = (await ui.findAll({ text: /^(. (brainstorm|spec|plan|execute|review|finish)\b|\[\S+\] ?\S +(impl|review) |  … \d+ more$)/ })).map(r => unbit(r.text).trim().split(/ {2,}/)[0])
+  const rows = (await ui.findAll({ type: 'Text', text: /^(. (brainstorm|spec|plan|execute|review|finish)\b|\[\S+\] ?\S +(impl|review) |  … \d+ more$)/ })).map(r => unbit(r.text).trim().split(/ {2,}/)[0])
   expect(rows).toEqual([
     '✓ brainstorm',
     '[^_^]✓ review Bui…',
@@ -775,7 +775,7 @@ test('main panel shows the version', async ($, on) => {
   mock.clock(on)
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
   // a Box's text holds its children's: the Text itself carries the dim
-  expect((await ui.find({ type: 'Text', text: /v1\.1\.0/ }))?.props.dimColor).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /v1\.2\.0/ }))?.props.dimColor).toBe(true)
 })
 
 test('the main header fits a narrow pane: the version drops when it does not fit', async ($, on) => {
@@ -786,7 +786,7 @@ test('the main header fits a narrow pane: the version drops when it does not fit
     const ui = await $.ui.mount({ ...pane, props: { ...pane.props, bodyColumns: cols }, surface: 'terminal' } as never)
     const head = await ui.find({ type: 'Box', text: /· main.*○ idle( +v[\d.]+)?$/ })
     expect(head?.text.length).toBeLessThanOrEqual(cols - 4)
-    expect(!!(await ui.find({ type: 'Text', text: /v1\.1\.0/ }))).toBe(shown)
+    expect(!!(await ui.find({ type: 'Text', text: /v1\.2\.0/ }))).toBe(shown)
     await ui.unmount()
   }
 })
@@ -873,7 +873,7 @@ test('on desktop a done execute row beside its sprite keeps its count and time',
   await toExecute($, on)
   await $.skill.prompt({ skill: 'superpowers:finishing-a-development-branch', text: '' })
   const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
-  const row = await ui.find({ text: /^✓ execute / })
+  const row = await ui.find({ text: /^✓ execute [^│]*$/ })
   expect(row?.text).toMatch(/ \d\/3 \d\d:\d\d$/)
   expect([...row!.text].length).toBeLessThanOrEqual(46 - 4 - 4)
 })
@@ -919,6 +919,19 @@ test('on desktop the execute bar is an Svg that fits the row, on a wide or a nar
     expect((await ui.findAll({ type: 'Svg' })).filter(s => /^\d+\/3$/.test(String(s.props.alt)))).toHaveLength(1)
     expect(await ui.find({ text: /[█▓░]/ })).toBeUndefined()
     expect(await ui.find({ text: / \d\/3/ })).toBeDefined()
+    await ui.unmount()
+  }
+})
+
+test('sections and superpowers stages are spaced with a sm gap (0 rows in the terminal)', async ($, on) => {
+  mock.clock(on)
+  on('skill.prompt', () => ({ text: '' }))
+  await $.skill.prompt({ skill: 'superpowers:brainstorming', text: '' })
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...pane, surface } as never)
+    expect((await ui.find({ type: 'Box' }))?.props.gap).toBe('sm')
+    const stages = (await ui.findAll({ type: 'Box' })).filter(b => b.props.gap === 'sm' && /brainstorm/.test(b.text) && !/main/.test(b.text))
+    expect(stages).toHaveLength(1)
     await ui.unmount()
   }
 })

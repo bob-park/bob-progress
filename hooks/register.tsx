@@ -174,7 +174,7 @@ export const register: Register = on => {
     const f = frame()
     const v = { W: Math.max(30, e.props.bodyColumns), f, spin: SPINNER[f % SPINNER.length]!, busy: view.busy, now, px: e.surface !== 'terminal' }
     return (
-      <Box flexDirection="column">
+      <Box flexDirection="column" gap="sm">
         {mainPanel(ui, view.main, v, VERSION)}
         {view.sp.stages.length > 0 ? spPanel(ui, view.sp, view.spTasks, view.runs, v) : null}
         {view.shown.length > 0 ? tasksPanel(ui, view.shown, view.main.doneAt, v) : null}

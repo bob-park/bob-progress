@@ -412,11 +412,16 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
         <Text color="yellow" bold>⚡ SUPERPOWERS</Text>
         {sp.path ? <Text color="magenta" bold>{sp.path.toUpperCase()}</Text> : null}
       </Box>
-      {pipeline(sp).flatMap(s => [
-        row(s),
-        ...(s.stage === 'execute' && plan.length > 0 && !carded(s) ? [nested('now', spNow(ui, plan, sp.doneAt, runs, inner))] : []),
-        ...rolesOf(s.stage),
-      ])}
+      {/* a gap between stages: the terminal draws sm as 0 rows, desktop spaces them */}
+      <Box flexDirection="column" gap="sm">
+        {pipeline(sp).map(s => (
+          <Box key={s.stage} flexDirection="column">
+            {row(s)}
+            {s.stage === 'execute' && plan.length > 0 && !carded(s) ? nested('now', spNow(ui, plan, sp.doneAt, runs, inner)) : null}
+            {rolesOf(s.stage)}
+          </Box>
+        ))}
+      </Box>
       {sp.extras.length > 0 ? <Text dimColor wrap="truncate">{sp.extras.map(x => `+ ${x}`).join('  ')}</Text> : null}
     </Box>
   )

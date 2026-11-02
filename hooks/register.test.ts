@@ -745,3 +745,37 @@ test('each stage keeps its agents: issues first, 5 rows, then … more', async (
     expect.stringMatching(/^. finish$/),
   ])
 })
+
+test('inline execution: task-start makes its task current; a failed call or another plan does not', async ($, on) => {
+  mock.clock(on)
+  const files: Record<string, string> = {
+    [SP]: '### Task 1: Real run\n- [ ] a\n### Task 2: Docs\n- [ ] b\n',
+    [LEDGER]: '# SDD ledger — plan: docs/superpowers/plans/2026-01-01-x.md\nTask 1: Ruling: skip seeding\n',
+  }
+  on('fs.read', (_$, e) => (e.path in files ? { value: files[e.path]! } : { deny: `ENOENT: ${e.path}` }))
+  on('tool.call', (_$, e) => ((e as { command?: string }).command?.includes('FAIL') ? { result: {}, isError: true } : { result: {} }) as never)
+  on('skill.prompt', () => ({ text: '' }))
+  await $.tool.call({ tool: 'Write', file_path: SP, content: '' } as never)
+  await $.skill.prompt({ skill: 'superpowers:executing-plans', text: '' })
+  const bash = (command: string) => $.tool.call({ tool: 'Bash', command } as never)
+  const current = async () => {
+    const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
+    const line = (await ui.find({ text: /^▸ #/ }))?.text
+    await ui.unmount()
+    return line
+  }
+
+  expect(await current()).toBeUndefined()
+  await bash('scripts/task-start docs/superpowers/plans/other.md 1')
+  await bash('scripts/task-start docs/superpowers/plans/2026-01-01-x.md 2 FAIL')
+  expect(await current()).toBeUndefined()
+
+  await bash('scripts/task-start docs/superpowers/plans/2026-01-01-x.md 1')
+  expect(await current()).toBe('▸ #1 Real run')
+  await bash('ls') // a re-read keeps it
+  expect(await current()).toBe('▸ #1 Real run')
+
+  files[LEDGER] += 'Task 1: complete (commits a..b, tests: yarn test → pass)\n'
+  await bash('scripts/task-start docs/superpowers/plans/2026-01-01-x.md 2')
+  expect(await current()).toBe('▸ #2 Docs')
+})

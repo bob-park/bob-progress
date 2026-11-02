@@ -27,7 +27,8 @@ export type SkillUse = { name: string; at: number }
 export type Activity = { id: number; at: number; label: string; status: 'running' | 'ok' | 'error' }
 
 /** The active plan: a superpowers plan shows under SUPERPOWERS, a plan-mode plan under TASKS */
-export type Plan = { path: string; tasks: Task[] }
+/** `started`: the task executing-plans last took with `task-start` */
+export type Plan = { path: string; tasks: Task[]; started?: string }
 
 /** Main-loop vitals, drawn like Flightdeck's main panel */
 export type Main = {

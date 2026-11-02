@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { isPlanPath, keepCompleted, ledgerOwns, ledgerPath, parsePlan } from './plan'
+import { isPlanPath, keepCompleted, ledgerOwns, ledgerPath, parsePlan, startedOf } from './plan'
 
 const SP = '/r/docs/superpowers/plans/2026-01-01-x.md'
 const spPlan = [
@@ -137,4 +137,21 @@ test('upper-case task suffixes read as lower-case everywhere', () => {
   const plan = '### Task 3: C\n- [x] a\n### Task 3B: W\n- [ ] b\n### Task 4: D\n- [ ] c'
   expect(parsePlan(plan).map(t => `${t.n} ${t.status}`)).toEqual(['3 completed', '3b in_progress', '4 pending'])
   expect(parsePlan(plan, '- Task 4: dispatched\n- Task 3B: dispatched').map(t => `${t.n} ${t.status}`)).toEqual(['3 completed', '3b in_progress', '4 in_progress'])
+})
+
+test('startedOf reads task-start for the same plan only', () => {
+  const P = '/r/docs/superpowers/plans/2026-01-01-x.md'
+  expect(startedOf('/h/skills/executing-plans/scripts/task-start docs/superpowers/plans/2026-01-01-x.md 2', P)).toBe('2')
+  expect(startedOf(`scripts/task-start "${P}" 3B && cat brief`, P)).toBe('3b')
+  expect(startedOf('task-start ./docs/superpowers/plans/2026-01-01-x.md 1', P)).toBe('1')
+  expect(startedOf('task-start docs/superpowers/plans/other.md 2', P)).toBeUndefined()
+  expect(startedOf('task-brief docs/superpowers/plans/2026-01-01-x.md 2', P)).toBeUndefined()
+})
+
+test('started task is current unless dispatched wins or it is done', () => {
+  const plan = '### Task 1: A\n- [ ] s\n### Task 2: B\n- [ ] s\n### Task 3: C\n- [ ] s'
+  expect(parsePlan(plan, undefined, '1').map(t => t.status)).toEqual(['in_progress', 'pending', 'pending'])
+  expect(parsePlan(plan, '- Task 1: complete', '2').map(t => t.status)).toEqual(['completed', 'in_progress', 'pending'])
+  expect(parsePlan(plan, '- Task 3: dispatched', '2').map(t => t.status)).toEqual(['pending', 'pending', 'in_progress'])
+  expect(parsePlan(plan, '- Task 1: complete', '1').map(t => t.status)).toEqual(['completed', 'in_progress', 'pending'])
 })

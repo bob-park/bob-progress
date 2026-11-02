@@ -49,7 +49,14 @@ export const keepCompleted = (prev: Task[], next: Task[]): Task[] => {
   )
 }
 
-export const parsePlan = (text: string, ledger?: string): Task[] => {
+/** executing-plans takes each task with `task-start PLAN N`: N, when PLAN is this plan */
+export const startedOf = (command: string, planPath: string) => {
+  const m = /\btask-start\s+(\S+)\s+(\d+[a-zA-Z]?)\b/.exec(command)
+  const base = (p: string) => p.replace(/['"]/g, '').slice(p.replace(/['"]/g, '').lastIndexOf('/') + 1)
+  return m && base(m[1]!) === base(planPath) ? m[2]!.toLowerCase() : undefined
+}
+
+export const parsePlan = (text: string, ledger?: string, started?: string): Task[] => {
   const lines = planLines(text)
 
   // superpowers: `### Task N:` headings (a task added mid-run reads `3b`), steps beneath; 7.0.1 ledger lines may be list items: `- Task N: complete`, `- Task N: dispatched`
@@ -67,7 +74,10 @@ export const parsePlan = (text: string, ledger?: string): Task[] => {
     const logged = new Set(lines.filter(m => m[2]!.toLowerCase() === 'complete').map(m => m[1]!.toLowerCase()))
     const items = tasks.map(t => ({ label: t.label, n: t.n, done: logged.has(t.n) || (t.steps.length > 0 && t.steps.every(Boolean)) }))
     // a dispatched task still open is what runs now; several when dispatched in parallel
-    const running = new Set(lines.filter(m => m[2]!.toLowerCase() === 'dispatched').map(m => m[1]!.toLowerCase()).filter(n => items.some(i => i.n === n && !i.done)))
+    const open = (n: string) => items.some(i => i.n === n && !i.done)
+    const dispatched = lines.filter(m => m[2]!.toLowerCase() === 'dispatched').map(m => m[1]!.toLowerCase()).filter(open)
+    // executing-plans dispatches nothing: the task it last started runs now
+    const running = new Set(dispatched.length > 0 ? dispatched : started && open(started) ? [started] : [])
     if (running.size > 0)
       return items.map(i => ({ status: i.done ? 'completed' : running.has(i.n) ? 'in_progress' : 'pending', label: i.label, n: i.n }))
     return withCurrent(items, logged.size > 0 || tasks.some(t => t.steps.some(Boolean)))

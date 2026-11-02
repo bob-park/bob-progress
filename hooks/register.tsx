@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { BuiltinToolResults, EngineInterface, Register, Timer } from 'claude-code'
 
 import type { Activity, AgentRun, AgentStatus, Main, Plan, SkillUse, Sp, Task } from '../types'
-import { isPlanPath, keepCompleted, ledgerOwns, ledgerPath, parsePlan } from './plan'
+import { isPlanPath, keepCompleted, ledgerOwns, ledgerPath, parsePlan, startedOf } from './plan'
 import { addExtra, EMPTY_SP, extraOf, isSpecPath, pathFrom, reach, roleOf, sizeUp, skillName, stageOf, taskNOf, verdictOf, withAt } from './superpowers'
 import { activityPanel, agentsPanel, FRAME_MS, mainPanel, skillsPanel, spPanel, SPINNER, tasksPanel } from './view'
 
@@ -33,7 +33,7 @@ export const pushActivity = (all: Activity[], row: Omit<Activity, 'id'>) => {
 }
 
 // a failed read keeps what the pane already shows
-const refreshPlan = async ($: EngineInterface, path: string) => {
+const refreshPlan = async ($: EngineInterface, path: string, startedNow?: string) => {
   const text = await $.fs.read(path).catch(() => null)
   if (typeof text !== 'string') return
   const at = ledgerPath(path)
@@ -41,10 +41,11 @@ const refreshPlan = async ($: EngineInterface, path: string) => {
   const owned = typeof ledger === 'string' && ledgerOwns(path, ledger) ? ledger : undefined
   const base = (p: string) => p.slice(p.lastIndexOf('/') + 1)
   await update($, plan, prev => {
-    const tasks = parsePlan(text, owned)
-    // same plan (maybe now in the main checkout): done stays done
+    // same plan (maybe now in the main checkout): done stays done, the started task stays started
     const same = !!prev?.path && base(prev.path) === base(path)
-    return { path, tasks: same ? keepCompleted(prev.tasks, tasks) : tasks }
+    const started = startedNow ?? (same ? prev.started : undefined)
+    const tasks = parsePlan(text, owned, started)
+    return { path, tasks: same ? keepCompleted(prev.tasks, tasks) : tasks, ...(started ? { started } : {}) }
   })
 }
 
@@ -298,7 +299,8 @@ export const register: Register = on => {
     const prev = await read($, plan)
     const now = await $.clock.now()
     const path = planned ?? written ?? prev?.path
-    if (path) await refreshPlan($, path)
+    const started = e.tool === 'Bash' && prev?.path ? startedOf(e.command, prev.path) : undefined
+    if (path) await refreshPlan($, path, started)
     if ((e.tool === 'Write' || e.tool === 'Edit') && isSpecPath(e.file_path)) await updateSp($, s => reach(s, 'spec', now))
     // a superpowers plan reaches the plan stage; one already reached is only re-read
     const base = (p: string) => p.slice(p.lastIndexOf('/') + 1)

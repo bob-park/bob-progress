@@ -376,7 +376,8 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
     return (
       <Box key={s.stage} flexDirection="row" gap={1}>
         <Svg {...stageSvg(s.stage, 1, false)} />
-        {plainRow(s, { ...v, W: v.W - 4 })}
+        {/* grows into the row, so a bar inside it has room to stretch */}
+        <Box flexGrow={1}>{plainRow(s, { ...v, W: v.W - 4 })}</Box>
       </Box>
     )
   }

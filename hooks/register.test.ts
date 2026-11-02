@@ -935,3 +935,11 @@ test('sections and superpowers stages are spaced with a sm gap (0 rows in the te
     await ui.unmount()
   }
 })
+
+test('on desktop a done execute row gives its bar room to stretch', async ($, on) => {
+  await toExecute($, on)
+  await $.skill.prompt({ skill: 'superpowers:finishing-a-development-branch', text: '' })
+  const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
+  const grow = (await ui.findAll({ type: 'Box' })).filter(b => b.props.flexGrow === 1 && /^✓ execute [^│]*$/.test(b.text))
+  expect(grow.length).toBeGreaterThan(0)
+})

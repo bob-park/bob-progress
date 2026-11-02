@@ -13,7 +13,7 @@ export const botKind = (r: AgentRun): BotKind => {
 }
 export const botStatus = (r: AgentRun): BotStatus => (r.status === 'failed' ? 'failed' : r.verdict === 'issues' ? 'issues' : r.status)
 
-export const STAGE_NAME: Record<Stage, string> = { brainstorm: '생각쟁이', spec: '서기', plan: '설계사', worktree: '정원사', execute: '건설공', review: '탐정', finish: '축하꾼' }
+export const STAGE_NAME: Record<Stage, string> = { brainstorm: '꿈꾸는 현자', spec: '필경사', plan: '대마법 건축가', worktree: '숲의 드루이드', execute: '망치 대장장이', review: '그림자 추적자', finish: '축제 음유시인' }
 
 /** Cells per character line: hat/body 9 + prop 3 */
 export const STAGE_W = 12
@@ -114,7 +114,8 @@ const CSS = `<style>.tp g{transform-box:fill-box}.tp .spark{opacity:0}
 .tp.on .grow{transform-origin:50% 100%;animation:grow 2s steps(1) infinite}@keyframes grow{0%{transform:scaleY(.25)}33%{transform:scaleY(.6)}66%{transform:scaleY(1)}}
 .tp.on .wave{transform-origin:0% 50%;animation:wave .25s steps(1) infinite}@keyframes wave{50%{transform:skewY(15deg)}}
 .tp.on .c1{animation:blink .8s steps(1) infinite}.tp.on .c2{animation:blink .8s steps(1) infinite .4s}
-.tp.on .hop{animation:hop .4s steps(1) infinite}@keyframes hop{50%{transform:translateY(-1px)}}.tp.on .ant{animation:blink .8s steps(1) infinite}
+.tp.on .hop{animation:hop .4s steps(1) infinite}@keyframes hop{50%{transform:translateY(-1px)}}
+.tp.on .tool{transform-origin:0% 100%;animation:wig .6s steps(1) infinite}@keyframes wig{50%{transform:rotate(-20deg)}}
 @media (prefers-reduced-motion: reduce){.tp.on *{animation:none!important}}</style>`
 
 const svgDoc = (body: string, w: number, h: number, scale: number, on: boolean) =>
@@ -122,7 +123,7 @@ const svgDoc = (body: string, w: number, h: number, scale: number, on: boolean) 
 
 /** Standalone SVG of a stage's Clawd; moves only when on */
 export const stageSvg = (stage: Stage, scale: number, on: boolean) =>
-  ({ source: svgDoc(STAGE_PX[stage], 25, 15, scale, on), width: 25 * scale, height: 15 * scale, alt: `${stage} · ${STAGE_NAME[stage]}` })
+  ({ source: svgDoc(STAGE_PX[stage], 25, 15, scale, on), width: 25 * scale, height: 15 * scale, alt: `${stage} · ${STAGE_NAME[stage]}`, ...(on ? { isInteractive: true as const } : {}) })
 
 const ROLE_PX: Record<BotKind, { color: string; tool: string[] }> = {
   impl: { color: '#378ADD', tool: ['..G', '.GG', 'G..'] },
@@ -130,19 +131,43 @@ const ROLE_PX: Record<BotKind, { color: string; tool: string[] }> = {
   fix: { color: '#E5534B', tool: ['.W.', 'WWW', '.W.'] },
   agent: { color: '#1D9E75', tool: [] },
 }
-// Marks drawn where the tool sits (x 10, y 3)
+// Marks drawn where the tool sits (x 15, y 2)
 const MARK: Partial<Record<BotStatus, string[]>> = {
   done: ['..g', 'g.g', '.g.'],
   failed: ['R.R', '.R.', 'R.R'],
   issues: ['.Y.', '.Y.', '...', '.Y.'],
 }
-const BOT_PX = ['....a.....', '....w.....', '..XXXXXX..', '.XXXXXXXX.', '.XKXXXXKX.', '.XXXXXXXX.', '..XXXXXX..']
+// From the desktop-pane mockup's A: a little Clawd, its hat ('H') in the role's colour; eyes 3x2 at (3,2) and (8,2)
+const MINI = ['....HHHHHH....', '...HHHHHHHH...', '..##########..', '..##########..', '##############', '..##########..', '..##########..']
+const MINI_LEGS = ['..#.#....#.#..', '..#.#....#.#..']
+const EYES: Record<BotStatus, string[]> = { running: ['.K.', '.K.'], waiting: ['...', 'KKK'], done: ['.K.', 'K.K'], failed: ['K.K', '.K.'], issues: ['KKK', 'K.K'] }
 
-/** Standalone SVG of a sub-agent bot "Bit"; hops only while running */
+/** Standalone SVG of a sub-agent's little Clawd; hops and wiggles its tool only while running */
 export const botSvg = (kind: BotKind, scale: number, status: BotStatus) => {
   const r = ROLE_PX[kind]
-  const rows = status === 'waiting' ? BOT_PX.map((l, i) => (i === 4 ? '.XKKXXKKX.' : l)) : BOT_PX
+  const on = status === 'running'
   const mark = MARK[status]
-  const body = `<g class="hop">${layer([rows[0]!], 0, 0, 'ant', { a: r.color })}${layer(rows.slice(1), 0, 1, '', { X: r.color })}${mark ? layer(mark, 10, mark.length > 3 ? 2 : 3) : layer(r.tool, 10, 3)}</g>${layer(['..w....w..'], 0, 8)}`
-  return { source: svgDoc(body, 14, 10, scale, status === 'running'), width: 14 * scale, height: 10 * scale, alt: `${kind} ${status}` }
+  const face = layer(EYES[status], 3, 2) + layer(EYES[status], 8, 2)
+  const side = mark ? layer(mark, 15, mark.length > 3 ? 1 : 2) : layer(r.tool, 15, 2, 'tool')
+  const body = `<g class="hop">${layer(MINI, 0, 0, '', { H: r.color })}${face}${side}</g>${layer(MINI_LEGS, 0, MINI.length)}`
+  return { source: svgDoc(body, 18, 10, scale, on), width: 18 * scale, height: 10 * scale, alt: `${kind} ${status}`, ...(on ? { isInteractive: true as const } : {}) }
+}
+
+const BAR = { done: '#5fbf8f', active: '#f2c94c', todo: '#3a3833', hi: '#fff3c4' }
+const r2 = (n: number) => Math.round(n * 100) / 100
+
+/** The plan bar for surfaces that draw Svg: done, active and todo by share, stretched to its box; a bright band sweeps the active part while it works */
+export const barSvg = (done: number, active: number, total: number, on: boolean) => {
+  const t = Math.max(1, total)
+  const d = r2((done / t) * 100), a = r2((active / t) * 100), rest = r2(100 - d - a)
+  const hiW = Math.min(4, a)
+  // a part no wider than the band has nowhere to sweep: drawn still, so no frame
+  const moving = on && a > hiW
+  const rect = (x: number, w: number, fill: string, cls = '') => (w > 0 ? `<rect${cls ? ` class="${cls}"` : ''} x="${x}" y="0" width="${w}" height="6" fill="${fill}"/>` : '')
+  const css = moving
+    ? `<style>.tp.on .sw{animation:sw 1s steps(10) infinite}@keyframes sw{to{transform:translateX(${r2(a - hiW)}px)}}@media (prefers-reduced-motion: reduce){.tp.on *{animation:none!important}}</style>`
+    : ''
+  const body = rect(0, d, BAR.done) + rect(d, a, BAR.active) + rect(r2(d + a), rest, BAR.todo) + (moving ? rect(d, hiW, BAR.hi, 'sw') : '')
+  const source = `<svg class="tp${moving ? ' on' : ''}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 6" preserveAspectRatio="none" width="100%" height="10" shape-rendering="crispEdges">${css}${body}</svg>`
+  return { source, height: 10, alt: `${done}/${total}`, ...(moving ? { isInteractive: true as const } : {}) }
 }

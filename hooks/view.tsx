@@ -1,7 +1,7 @@
 import type { EngineInterface } from 'claude-code'
 
 import type { Activity, AgentRun, Main, Sp, Stage, Task } from '../types'
-import { BOT_W, botFrame, botKind, botStatus, botSvg, phaseOf, STAGE_NAME, STAGE_W, stageFrame, stageSvg } from './characters'
+import { barSvg, BOT_W, botFrame, botKind, botStatus, botSvg, phaseOf, STAGE_NAME, STAGE_W, stageFrame, stageSvg } from './characters'
 import { fitTail, pipeline, stageOfRun, stageTimes } from './superpowers'
 import type { Step } from './superpowers'
 
@@ -143,6 +143,34 @@ const planBar = ({ Text }: UI, list: Task[], barW: number, v: Frame) => {
   ]
 }
 
+/** A row with the plan bar: the terminal draws its cells inline; a surface with Svg stretches an Svg bar between `before` and the count */
+const barLine = (ui: UI, key: string, before: JSX.Element[], list: Task[], barW: number, after: JSX.Element[], v: Frame) => {
+  const { Box, Text } = ui
+  const Svg = svgOf(ui, v)
+  if (!Svg)
+    return (
+      <Text key={key} wrap="truncate">
+        {before}
+        {planBar(ui, list, barW, v)}
+        {after}
+      </Text>
+    )
+  const done = count(list)
+  const active = list.filter(t => t.status === 'in_progress').length
+  return (
+    <Box key={key} flexDirection="row" gap={1} alignItems="center">
+      {before.length > 0 ? <Text>{before}</Text> : null}
+      <Box flexGrow={1}>
+        <Svg {...barSvg(done, active, list.length, v.busy)} />
+      </Box>
+      <Text wrap="truncate">
+        <Text bold color="blue">{`${done}/${list.length}`}</Text>
+        {after}
+      </Text>
+    </Box>
+  )
+}
+
 /** What runs now, the next one, or when it all finished */
 const planNow = ({ Text }: UI, list: Task[], doneAt: number | null, v: Frame) => {
   const active = list.filter(t => t.status === 'in_progress')
@@ -199,10 +227,7 @@ export const progressLines = (ui: UI, list: Task[], doneAt: number | null, v: Fr
   const total = list.length
   const barW = Math.max(10, v.W - 4 - ` ${total}/${total} · 100%`.length - 1)
   return [
-    <Text key="bar" wrap="truncate">
-      {planBar(ui, list, barW, v)}
-      <Text dimColor>{` · ${Math.round((count(list) / total) * 100)}%`}</Text>
-    </Text>,
+    barLine(ui, 'bar', [], list, barW, [<Text key="pct" dimColor>{` · ${Math.round((count(list) / total) * 100)}%`}</Text>], v),
     planNow(ui, list, doneAt, v),
   ]
 }
@@ -319,9 +344,9 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
     const right = [
       <Text key="head" color="yellow" bold wrap="truncate">{time ? lineUp(mark.current, stage, time, rw + 4, ' ') : `${mark.current} ${stage}`}</Text>,
       withPlan ? (
-        <Text key="bar" wrap="truncate">{planBar(ui, plan, Math.max(3, rw - ` ${total}/${total}`.length), v)}</Text>
+        barLine(ui, 'bar', [], plan, Math.max(3, rw - ` ${total}/${total}`.length), [], v)
       ) : (
-        <Text key="name" dimColor>{STAGE_NAME[stage]}</Text>
+        <Text key="name" bold wrap="truncate">{STAGE_NAME[stage]}</Text>
       ),
       withPlan ? spNow(ui, plan, sp.doneAt, runs, { ...v, W: rw + 4 }) : null,
     ]
@@ -351,7 +376,8 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
     return (
       <Box key={s.stage} flexDirection="row" gap={1}>
         <Svg {...stageSvg(s.stage, 1, false)} />
-        {plainRow(s, { ...v, W: v.W - 4 })}
+        {/* grows into the row, so a bar inside it has room to stretch */}
+        <Box flexGrow={1}>{plainRow(s, { ...v, W: v.W - 4 })}</Box>
       </Box>
     )
   }
@@ -364,11 +390,16 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
       const total = plan.length
       const barW = Math.max(3, v.W - 4 - head.length - 1 - ` ${total}/${total}`.length - time.length)
       return (
-        <Text key={stage} wrap="truncate">
-          <Text color={color} bold={state === 'current'} dimColor={state === 'todo'}>{`${head} `}</Text>
-          {planBar(ui, plan, barW, v)}
-          <Text dimColor={state !== 'current'}>{time}</Text>
-        </Text>
+        barLine(
+          ui,
+          stage,
+          // the terminal pads the head itself; a Svg row is spaced by its gap
+          [<Text key="head" color={color} bold={state === 'current'} dimColor={state === 'todo'}>{Svg ? head : `${head} `}</Text>],
+          plan,
+          barW,
+          [<Text key="time" dimColor={state !== 'current'}>{time}</Text>],
+          v,
+        )
       )
     }
     return (
@@ -383,11 +414,16 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
         <Text color="yellow" bold>⚡ SUPERPOWERS</Text>
         {sp.path ? <Text color="magenta" bold>{sp.path.toUpperCase()}</Text> : null}
       </Box>
-      {pipeline(sp).flatMap(s => [
-        row(s),
-        ...(s.stage === 'execute' && plan.length > 0 && !carded(s) ? [nested('now', spNow(ui, plan, sp.doneAt, runs, inner))] : []),
-        ...rolesOf(s.stage),
-      ])}
+      {/* a gap between stages: the terminal draws sm as 0 rows, desktop spaces them */}
+      <Box flexDirection="column" gap="sm">
+        {pipeline(sp).map(s => (
+          <Box key={s.stage} flexDirection="column">
+            {row(s)}
+            {s.stage === 'execute' && plan.length > 0 && !carded(s) ? nested('now', spNow(ui, plan, sp.doneAt, runs, inner)) : null}
+            {rolesOf(s.stage)}
+          </Box>
+        ))}
+      </Box>
       {sp.extras.length > 0 ? <Text dimColor wrap="truncate">{sp.extras.map(x => `+ ${x}`).join('  ')}</Text> : null}
     </Box>
   )

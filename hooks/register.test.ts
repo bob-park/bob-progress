@@ -38,9 +38,13 @@ test('tasks panel shows done/total next to the bar and the current step below', 
   await write([todo('a', 'completed'), todo('Build', 'in_progress'), todo('c', 'pending')])
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...pane, surface } as never)
-    expect((await ui.find({ text: /^ 1\/3$/ }))?.props.color).toBe('blue')
+    expect((await ui.find({ text: /^ ?1\/3$/ }))?.props.color).toBe('blue')
     expect(await ui.find({ text: /^ · 33%$/ })).toBeDefined()
-    expect((await ui.find({ text: /^▓+$/ }))?.props.color).toBe('yellow')
+    if (surface === 'terminal') expect((await ui.find({ text: /^▓+$/ }))?.props.color).toBe('yellow')
+    else {
+      expect((await ui.findAll({ type: 'Svg' })).filter(s => s.props.alt === '1/3')).toHaveLength(1)
+      expect(await ui.find({ text: /[█▓░]/ })).toBeUndefined()
+    }
     expect(await ui.find({ text: /^▸ Building$/ })).toBeDefined()
     await ui.unmount()
   }
@@ -499,7 +503,7 @@ test('a narrow pane cuts labels, keeps times', async ($, on) => {
   on('skill.prompt', () => ({ text: '' }))
   for (const skill of ['brainstorming', 'writing-plans', 'subagent-driven-development']) await $.skill.prompt({ skill: `superpowers:${skill}`, text: '' })
   const ui = await $.ui.mount({ ...pane, props: { ...pane.props, bodyColumns: 20 }, surface: 'terminal' } as never)
-  const rows = await ui.findAll({ text: /^[✓○●⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] (brainstorm|spec|plan|execute|review|finish)/ })
+  const rows = await ui.findAll({ type: 'Text', text: /^[✓○●⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] (brainstorm|spec|plan|execute|review|finish)/ })
   expect(rows.length).toBe(6)
   for (const r of rows) expect(r.text.length).toBeLessThanOrEqual(26)
   expect(await ui.find({ text: /^✓ brainstorm +\d\d:\d\d$/ })).toBeDefined()
@@ -713,7 +717,7 @@ test('each stage keeps its agents: issues first, 5 rows, then … more', async (
   await clock.advance(1000)
   await $.skill.prompt({ skill: 'superpowers:finishing-a-development-branch', text: '' })
   const ui = await $.ui.mount({ ...pane, props: { ...pane.props, scroll: { offset: 0, bodyRows: 60 } }, surface: 'terminal' } as never)
-  const rows = (await ui.findAll({ text: /^(. (brainstorm|spec|plan|execute|review|finish)\b|\[\S+\] ?\S +(impl|review) |  … \d+ more$)/ })).map(r => unbit(r.text).trim().split(/ {2,}/)[0])
+  const rows = (await ui.findAll({ type: 'Text', text: /^(. (brainstorm|spec|plan|execute|review|finish)\b|\[\S+\] ?\S +(impl|review) |  … \d+ more$)/ })).map(r => unbit(r.text).trim().split(/ {2,}/)[0])
   expect(rows).toEqual([
     '✓ brainstorm',
     '[^_^]✓ review Bui…',
@@ -771,7 +775,7 @@ test('main panel shows the version', async ($, on) => {
   mock.clock(on)
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
   // a Box's text holds its children's: the Text itself carries the dim
-  expect((await ui.find({ type: 'Text', text: /v1\.1\.0/ }))?.props.dimColor).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /v1\.2\.0/ }))?.props.dimColor).toBe(true)
 })
 
 test('the main header fits a narrow pane: the version drops when it does not fit', async ($, on) => {
@@ -782,7 +786,7 @@ test('the main header fits a narrow pane: the version drops when it does not fit
     const ui = await $.ui.mount({ ...pane, props: { ...pane.props, bodyColumns: cols }, surface: 'terminal' } as never)
     const head = await ui.find({ type: 'Box', text: /· main.*○ idle( +v[\d.]+)?$/ })
     expect(head?.text.length).toBeLessThanOrEqual(cols - 4)
-    expect(!!(await ui.find({ type: 'Text', text: /v1\.1\.0/ }))).toBe(shown)
+    expect(!!(await ui.find({ type: 'Text', text: /v1\.2\.0/ }))).toBe(shown)
     await ui.unmount()
   }
 })
@@ -858,7 +862,10 @@ test('a non-execute stage card fits the terminal pane', async ($, on) => {
   on('skill.prompt', () => ({ text: '' }))
   await $.skill.prompt({ skill: 'superpowers:brainstorming', text: '' })
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
-  expect(await ui.find({ text: /생각쟁이/ })).toBeDefined()
+  expect(await ui.find({ text: /꿈꾸는 현자/ })).toBeDefined()
+  const name = (await ui.findAll({ text: /^꿈꾸는 현자$/ })).find(t => t.props.bold)
+  expect(name?.props.dimColor).toBeFalsy()
+  expect(name).toBeDefined()
   for (const t of await ui.findAll({ type: 'Text' })) expect([...t.text].length).toBeLessThanOrEqual(42)
 })
 
@@ -866,8 +873,8 @@ test('on desktop a done execute row beside its sprite keeps its count and time',
   await toExecute($, on)
   await $.skill.prompt({ skill: 'superpowers:finishing-a-development-branch', text: '' })
   const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
-  const row = await ui.find({ text: /^✓ execute / })
-  expect(row?.text).toMatch(/ \d\/3 \d\d:\d\d$/)
+  const row = await ui.find({ text: /^✓ execute ?[^│]*$/ })
+  expect(row?.text).toMatch(/ ?\d\/3 \d\d:\d\d$/)
   expect([...row!.text].length).toBeLessThanOrEqual(46 - 4 - 4)
 })
 
@@ -875,7 +882,7 @@ test('desktop draws stage and agent sprites as Svg with alt text', async ($, on)
   await toExecute($, on)
   const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
   const alts = (await ui.findAll({ type: 'Svg' })).map(s => String(s.props.alt))
-  expect(alts).toContain('execute · 건설공')
+  expect(alts).toContain('execute · 망치 대장장이')
   expect(alts).toContain('impl running')
   expect(alts.some(a => /^brainstorm · /.test(a))).toBe(true) // 끝난 단계는 1배 정지 캐릭터
 })
@@ -893,4 +900,54 @@ test('a plain agent under AGENTS draws as a green bit', async ($, on) => {
   await $.agent.spawn({ prompt: 'p', description: 'Explore auth' } as never)
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
   expect((await ui.find({ text: /^\[•_•\] ?» *$/ }))?.props.color).toBe('#1D9E75')
+})
+
+test('a plain agent under AGENTS draws as a green-hatted Clawd on desktop', async ($, on) => {
+  mock.clock(on)
+  on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'A1' }))
+  await $.agent.spawn({ prompt: 'p', description: 'Explore auth' } as never)
+  const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
+  const svg = (await ui.findAll({ type: 'Svg' })).find(s => s.props.alt === 'agent running')
+  expect(String(svg?.props.source)).toContain('#1D9E75')
+  expect(String(svg?.props.source)).toContain('#D97757')
+})
+
+test('on desktop the execute bar is an Svg that fits the row, on a wide or a narrow pane', async ($, on) => {
+  await toExecute($, on)
+  for (const bodyColumns of [46, 34]) {
+    const ui = await $.ui.mount({ ...pane, props: { ...pane.props, bodyColumns }, surface: 'desktop' } as never)
+    expect((await ui.findAll({ type: 'Svg' })).filter(s => /^\d+\/3$/.test(String(s.props.alt)))).toHaveLength(1)
+    expect(await ui.find({ text: /[█▓░]/ })).toBeUndefined()
+    expect(await ui.find({ text: /\d\/3/ })).toBeDefined()
+    await ui.unmount()
+  }
+})
+
+test('sections and superpowers stages are spaced with a sm gap (0 rows in the terminal)', async ($, on) => {
+  mock.clock(on)
+  on('skill.prompt', () => ({ text: '' }))
+  await $.skill.prompt({ skill: 'superpowers:brainstorming', text: '' })
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...pane, surface } as never)
+    expect((await ui.find({ type: 'Box' }))?.props.gap).toBe('sm')
+    const stages = (await ui.findAll({ type: 'Box' })).filter(b => b.props.gap === 'sm' && /brainstorm/.test(b.text) && !/main/.test(b.text))
+    expect(stages).toHaveLength(1)
+    await ui.unmount()
+  }
+})
+
+test('on desktop a done execute row gives its bar room to stretch', async ($, on) => {
+  await toExecute($, on)
+  await $.skill.prompt({ skill: 'superpowers:finishing-a-development-branch', text: '' })
+  const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
+  const grow = (await ui.findAll({ type: 'Box' })).filter(b => b.props.flexGrow === 1 && /^✓ execute ?[^│]*$/.test(b.text))
+  expect(grow.length).toBeGreaterThan(0)
+})
+
+test('on desktop the bar row is spaced by its gap alone, no padding spaces', async ($, on) => {
+  await toExecute($, on)
+  await $.skill.prompt({ skill: 'superpowers:finishing-a-development-branch', text: '' })
+  const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
+  expect(await ui.find({ type: 'Text', text: /^✓ execute$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^\d\/3 \d\d:\d\d$/ })).toBeDefined()
 })

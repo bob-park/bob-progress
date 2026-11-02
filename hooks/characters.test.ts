@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { BOT_W, botFrame, botKind, botStatus, botSvg, STAGE_W, stageFrame, stageSvg } from './characters'
+import { barSvg, BOT_W, botFrame, botKind, botStatus, botSvg, STAGE_W, stageFrame, stageSvg } from './characters'
 import { ORDER } from './superpowers'
 
 const width = (segs: { text: string }[]) => segs.reduce((n, s) => n + [...s.text].length, 0)
@@ -68,7 +68,7 @@ test('botSvg: moves only while running; status marks for done, failed, issues', 
   for (const st of ['waiting', 'done', 'failed', 'issues'] as const) expect(botSvg('impl', 2, st).source).toContain('<svg class="tp"')
   expect(botSvg('impl', 2, 'done').source).not.toEqual(botSvg('impl', 2, 'failed').source)
   expect(botSvg('impl', 2, 'issues').source).not.toEqual(botSvg('impl', 2, 'done').source)
-  expect([botSvg('fix', 2, 'done').width, botSvg('fix', 2, 'done').height]).toEqual([28, 20])
+  expect([botSvg('fix', 2, 'done').width, botSvg('fix', 2, 'done').height]).toEqual([36, 20])
 })
 
 test('sprite CSS is scoped under the root class, so an inlined svg leaks nothing', () => {
@@ -77,4 +77,48 @@ test('sprite CSS is scoped under the root class, so an inlined svg leaks nothing
   const sels = css.replace(/@keyframes \w+\{(?:[^{}]*\{[^{}]*\})*\}/g, '').replace(/@media[^{]*\{/g, '').match(/[^{}]+(?=\{)/g)!
   expect(sels.length).toBeGreaterThan(10)
   for (const sel of sels) for (const part of sel.split(',')) expect(part.trim()).toMatch(/^\.tp[ .]/)
+})
+
+test('botSvg: a little Clawd in its role colour, one face per status', () => {
+  expect(botSvg('impl', 2, 'running').source).toContain('#D97757')
+  expect(botSvg('impl', 2, 'running').source).toContain('#378ADD')
+  expect(botSvg('agent', 2, 'done').source).toContain('#1D9E75')
+  const faces = new Set((['running', 'waiting', 'done', 'failed', 'issues'] as const).map(s => botSvg('impl', 2, s).source))
+  expect(faces.size).toBe(5)
+  expect(botSvg('review', 2, 'running')).toEqual(botSvg('review', 2, 'running'))
+})
+
+test('only moving sprites draw as an interactive frame', () => {
+  expect(botSvg('impl', 2, 'running').isInteractive).toBe(true)
+  for (const st of ['waiting', 'done', 'failed', 'issues'] as const) expect(botSvg('impl', 2, st).isInteractive).toBeUndefined()
+  expect(stageSvg('execute', 4, true).isInteractive).toBe(true)
+  expect(stageSvg('execute', 4, false).isInteractive).toBeUndefined()
+})
+
+test('barSvg: segments by share, no empty rect, stable, moves only with active work', () => {
+  const a = barSvg(3, 1, 7, true)
+  expect(a.source).toContain('#5fbf8f')
+  expect(a.source).toContain('#f2c94c')
+  expect(a.source).toContain('prefers-reduced-motion')
+  expect(a).toEqual(barSvg(3, 1, 7, true))
+  expect(a.alt).toBe('3/7')
+  expect(a.isInteractive).toBe(true)
+  expect(barSvg(3, 1, 7, false).isInteractive).toBeUndefined()
+  expect(barSvg(3, 0, 7, true).isInteractive).toBeUndefined()
+  expect(barSvg(0, 0, 7, false).source).not.toContain('#5fbf8f')
+  expect(barSvg(7, 0, 7, false).source).not.toContain('#3a3833')
+  for (const s of [barSvg(0, 0, 7, false), barSvg(7, 0, 7, true)]) expect(s.source).not.toMatch(/NaN|width="0"/)
+})
+
+test('barSvg: coordinates stay rounded to 2 places', () => {
+  expect(barSvg(2, 4, 7, true).source).not.toMatch(/\d\.\d{3,}/)
+})
+
+test('barSvg: an active part too thin to sweep draws still, without a frame', () => {
+  expect(barSvg(0, 1, 30, true).isInteractive).toBeUndefined()
+  expect(barSvg(0, 1, 30, true).source).not.toContain('class="sw"')
+})
+
+test('barSvg: an idle bar carries no style', () => {
+  expect(barSvg(3, 0, 7, false).source).not.toContain('<style>')
 })

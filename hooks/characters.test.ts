@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { BOT_W, botFrame, botKind, botStatus, STAGE_W, stageFrame } from './characters'
+import { BOT_W, botFrame, botKind, botStatus, botSvg, STAGE_W, stageFrame, stageSvg } from './characters'
 import { ORDER } from './superpowers'
 
 const width = (segs: { text: string }[]) => segs.reduce((n, s) => n + [...s.text].length, 0)
@@ -48,4 +48,25 @@ test('botKind and botStatus read role, phase and verdict; failed beats issues', 
   expect(botStatus(run({ status: 'done', verdict: 'issues' }))).toBe('issues')
   expect(botStatus(run({ status: 'failed', verdict: 'issues' }))).toBe('failed')
   expect(botStatus(run({ status: 'waiting' }))).toBe('waiting')
+})
+
+test('stageSvg: same input, same markup; animates only when on; honours reduced motion', () => {
+  for (const s of ORDER) {
+    const a = stageSvg(s, 4, true)
+    expect(a).toEqual(stageSvg(s, 4, true))
+    expect(a.source.startsWith('<svg')).toBe(true)
+    expect(a.source.length).toBeLessThan(131072)
+    expect(a.source).toContain('prefers-reduced-motion')
+    expect(a.source).toContain('class="on')
+    expect(stageSvg(s, 4, false).source).not.toContain('class="on')
+    expect([a.width, a.height]).toEqual([100, 60])
+  }
+})
+
+test('botSvg: moves only while running; status marks for done, failed, issues', () => {
+  expect(botSvg('impl', 2, 'running').source).toContain('class="on')
+  for (const st of ['waiting', 'done', 'failed', 'issues'] as const) expect(botSvg('impl', 2, st).source).not.toContain('class="on')
+  expect(botSvg('impl', 2, 'done').source).not.toEqual(botSvg('impl', 2, 'failed').source)
+  expect(botSvg('impl', 2, 'issues').source).not.toEqual(botSvg('impl', 2, 'done').source)
+  expect([botSvg('fix', 2, 'done').width, botSvg('fix', 2, 'done').height]).toEqual([28, 20])
 })

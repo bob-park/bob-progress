@@ -777,7 +777,7 @@ test('main panel shows the version', async ($, on) => {
   mock.clock(on)
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
   // a Box's text holds its children's: the Text itself carries the dim
-  expect((await ui.find({ type: 'Text', text: /v1\.2\.1/ }))?.props.dimColor).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /v1\.2\.2/ }))?.props.dimColor).toBe(true)
 })
 
 test('the main header fits a narrow pane: the version drops when it does not fit', async ($, on) => {
@@ -788,7 +788,7 @@ test('the main header fits a narrow pane: the version drops when it does not fit
     const ui = await $.ui.mount({ ...pane, props: { ...pane.props, bodyColumns: cols }, surface: 'terminal' } as never)
     const head = await ui.find({ type: 'Box', text: /· main.*○ idle( +v[\d.]+)?$/ })
     expect(head?.text.length).toBeLessThanOrEqual(cols - 4)
-    expect(!!(await ui.find({ type: 'Text', text: /v1\.2\.1/ }))).toBe(shown)
+    expect(!!(await ui.find({ type: 'Text', text: /v1\.2\.2/ }))).toBe(shown)
     await ui.unmount()
   }
 })
@@ -927,15 +927,17 @@ test('on desktop the execute bar is coloured boxes that fit the row, on a wide o
   }
 })
 
-test('sections and superpowers stages are spaced with a md gap (1 row in the terminal)', async ($, on) => {
+test('sections are a row apart; the stage card, not every stage, gets a row above and below', async ($, on) => {
   mock.clock(on)
   on('skill.prompt', () => ({ text: '' }))
   await $.skill.prompt({ skill: 'superpowers:brainstorming', text: '' })
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...pane, surface } as never)
     expect((await ui.find({ type: 'Box' }))?.props.gap).toBe('md')
-    const stages = (await ui.findAll({ type: 'Box' })).filter(b => b.props.gap === 'md' && /brainstorm/.test(b.text) && !/main/.test(b.text))
-    expect(stages).toHaveLength(1)
+    // stages sit back to back; the current stage's card gets a row above and below instead
+    const stages = (await ui.findAll({ type: 'Box' })).filter(b => b.props.flexDirection === 'column' && b.props.gap !== undefined && /brainstorm/.test(b.text) && !/main/.test(b.text))
+    expect(stages).toHaveLength(0)
+    expect((await ui.findAll({ type: 'Box' })).filter(b => b.props.paddingY === 1 && /꿈꾸는 현자/.test(b.text))).toHaveLength(1)
     await ui.unmount()
   }
 })
@@ -993,4 +995,12 @@ test('superpowers, tasks and agents paint with theme keys, so a light background
     for (const b of await ui.findAll({ type: 'Box' })) expect(['yellow', 'green']).not.toContain(String(b.props.borderColor))
     await ui.unmount()
   }
+})
+
+test('on desktop each agent row gets a hairline above and below (xs: 0 rows in the terminal)', async ($, on) => {
+  mock.clock(on)
+  on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'A1' }))
+  await $.agent.spawn({ prompt: 'p', description: 'Explore auth' } as never)
+  const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
+  expect((await ui.findAll({ type: 'Box' })).filter(b => b.props.paddingY === 'xs' && /1: Explore/.test(b.text) && !/AGENTS/.test(b.text))).toHaveLength(1)
 })

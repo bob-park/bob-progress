@@ -266,7 +266,8 @@ export const agentRow = (ui: UI, r: AgentRun, left: string, right: string, fill:
   const tone = { color: COLOR[r.status], dimColor: r.status === 'done', wrap: 'truncate' as const }
   if (Svg)
     return (
-      <Box key={String(r.n)} flexDirection="row" gap={1}>
+      // a hairline above and below: xs is the surface's smallest step (0 rows in the terminal)
+      <Box key={String(r.n)} flexDirection="row" gap={1} paddingY="xs">
         <Svg {...botSvg(kind, 2, status)} />
         <Text {...tone}>{line.trimStart()}</Text>
       </Box>
@@ -358,13 +359,14 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
     ]
     if (Svg)
       return (
-        <Box key={stage} flexDirection="row" gap={1}>
+        <Box key={stage} flexDirection="row" gap={1} paddingY={1}>
           <Svg {...stageSvg(stage, 4, v.busy)} />
           <Box flexDirection="column" width={rw}>{right}</Box>
         </Box>
       )
     return (
-      <Box key={stage} flexDirection="column">
+      // a row above and below sets the card apart from the stage rows
+      <Box key={stage} flexDirection="column" paddingY={1}>
         {stageFrame(stage, v.f, v.busy).map(([body, prop], i) => (
           <Text key={String(i)} wrap="truncate">
             <Text color={body!.color}>{body!.text}</Text>
@@ -420,8 +422,7 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
         <Text color="warning" bold>⚡ SUPERPOWERS</Text>
         {sp.path ? <Text color="magenta" bold>{sp.path.toUpperCase()}</Text> : null}
       </Box>
-      {/* a gap between stages: one row in the terminal, the surface's own md on desktop */}
-      <Box flexDirection="column" gap="md">
+      <Box flexDirection="column">
         {pipeline(sp).map(s => (
           <Box key={s.stage} flexDirection="column">
             {row(s)}

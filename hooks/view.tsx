@@ -56,14 +56,21 @@ export const lineUp = (icon: string, left: string, right: string, W: number, fil
 }
 
 // ---- main (layout from Flightdeck's main panel)
-export const mainPanel = ({ Box, Text }: UI, m: Main, v: Frame) => {
+export const mainPanel = ({ Box, Text }: UI, m: Main, v: Frame, version: string) => {
   const effortN = { low: 1, medium: 2, high: 3, xhigh: 4, max: 4 }[m.effort] ?? 0
   const ctx = m.pct !== null ? gauge(m.pct, 10) : null
+  const title = `${prettyModel(m.model)} · main`
+  const status = v.busy ? `${v.spin} working` : '○ idle'
+  // the version only where it fits beside the rest: a narrow pane drops it
+  const tag = title.length + 1 + status.length + `  v${version}`.length <= v.W - 4 ? `  v${version}` : ''
   return (
     <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} width={v.W}>
       <Box justifyContent="space-between">
-        <Text color="cyan" bold>{`${prettyModel(m.model)} · main`}</Text>
-        <Text color={v.busy ? 'cyan' : undefined} dimColor={!v.busy}>{v.busy ? `${v.spin} working` : '○ idle'}</Text>
+        <Text color="cyan" bold>{title}</Text>
+        <Box>
+          <Text color={v.busy ? 'cyan' : undefined} dimColor={!v.busy}>{status}</Text>
+          {tag ? <Text dimColor>{tag}</Text> : null}
+        </Box>
       </Box>
       <Text wrap="truncate">
         <Text dimColor>effort </Text>

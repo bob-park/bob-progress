@@ -23,11 +23,12 @@ export type AgentRun = {
 /** A skill the session ran, in order */
 export type SkillUse = { name: string; at: number }
 
-/** A main-loop tool call: `Bash · Run tests` */
-export type Activity = { id: number; at: number; label: string; status: 'running' | 'ok' | 'error' }
+/** A main-loop tool call: `Bash · Run tests`; `toolId`: the call's tool_use_id, which settles it */
+export type Activity = { id: number; at: number; label: string; status: 'running' | 'ok' | 'error'; toolId?: string }
 
 /** The active plan: a superpowers plan shows under SUPERPOWERS, a plan-mode plan under TASKS */
-export type Plan = { path: string; tasks: Task[] }
+/** `started`: the task executing-plans last took with `task-start` */
+export type Plan = { path: string; tasks: Task[]; started?: string }
 
 /** Main-loop vitals, drawn like Flightdeck's main panel */
 export type Main = {
@@ -56,16 +57,15 @@ export type Role = 'impl' | 'review'
 /** `at`: when each stage of this cycle was first reached */
 export type Sp = { path?: SpPath; stages: Stage[]; current?: Stage; extras: string[]; doneAt: number | null; at: Partial<Record<Stage, number>> }
 
+/** `text`: the plan file as last read; `ledger`: its SDD ledger; `edited`: the last plan task a code edit touched */
+export type PlanState = { path: string; text: string; ledger?: string; tasks: Task[]; started?: string; edited?: string; warned: boolean }
+/** Everything the pane draws from: what hooks/state.ts's `step` folds the session's events into */
+export type S = { main: Main; todos: Record<string, Task>; agents: Record<string, AgentRun>; skills: SkillUse[]; activity: Activity[]; sp: Sp; plan: PlanState }
+
 declare module 'claude-code' {
   interface PluginState {
     'task-progress': {
-      tasks: Record<string, Task>
-      main: Main
-      plan: Plan
-      agents: Record<string, AgentRun>
-      skills: SkillUse[]
-      activity: Activity[]
-      sp: Sp
+      state: S
     }
   }
 }

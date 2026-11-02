@@ -14,12 +14,12 @@ The same reducer replays recorded sessions (see [Local replay](#local-replay)).
    - under each stage, the agents that ran in it by role, working ones first, then ones with issues, then the latest, 5 at most and `… N more`: `▐•_•▌⚙ impl #4  Haiku 5.5 01:12`, `▐^_^▌✓ review #3  approved 00:41` (`▐o_o▌⚠ … issues` when the review wants fixes); fix agents count as impl, brainstorming's builder check as a review
    - the stage only moves forward: review waits until every plan task is done, and a skill a subagent loads never moves it
    - extras used along the way: `+ tdd  + debugging  + verification`
-3. **TASKS** — todos (TodoWrite / TaskCreate), else a plan-mode plan (`~/.claude/plans/*.md`, its `- [ ]` checkboxes, else its numbered steps ticked as `1. [x]`): progress bar with `done/total · %` beside it, in-progress tasks in yellow, the current step below with its number (`▸ #2 Wiring`), or the next one (`○ 다음: …`) when none has started, and `✓ completed · 26.10.09 PM 02:05` once every task is done
+3. **TASKS** — todos (TodoWrite / TaskCreate), else a plan-mode plan (`~/.claude/plans/*.md`, its `- [ ]` checkboxes, else its numbered steps ticked as `1. [x]`): progress bar with `done/total · %` beside it, in-progress tasks in the theme's warning colour, the current step below with its number (`▸ #2 Wiring`), or the next one (`○ 다음: …`) when none has started, and `✓ completed · 26.10.09 PM 02:05` once every task is done
 4. **AGENTS** — every other subagent as `▐•_•▌» 1: Explore auth --- Haiku 5.5 01:23`, running ones first (`▐-_-▌z` when waiting on its own background work), then the latest 3 that ended (`▐^_^▌✓` done, `▐x_x▌✗` failed) with their final time. The header counts all agents: `2 running · 5 done · 1 failed`
 5. **SKILLS** — every skill run, in order: `brainstorming → writing-plans → subagent-driven-development`
 6. **ACTIVITY** — the main loop's latest 3 tool calls: `14:05 ⠹ Bash · Run tests`, `✓` once done, `✗` on error
 
-While Claude or an agent works, spinners turn and a bright cell sweeps the in-progress part of each progress bar.
+While Claude or an agent works, spinners turn and a bright cell sweeps the in-progress part of each progress bar in the terminal.
 
 The demo records only the pane while a mock superpowers cycle runs in the same session (a notification-settings page: brainstorm with a builder check → spec → plan → 5 plan tasks, one impl subagent each plus task reviews, one review asking for fixes `▐o_o▌⚠` and a fix agent; a whole-branch review; then finish), sped up 5×:
 

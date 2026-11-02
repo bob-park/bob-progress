@@ -20,7 +20,8 @@ export const STAGE_W = 12
 /** Cells per bot glyph */
 export const BOT_W = 7
 
-const C = { clay: '#D97757', green: '#5fbf8f', yellow: '#f2c94c', mag: '#e056fd', blue: '#61afef', red: '#e5534b', fg: 'text', cyan: '#56b6c2', brown: '#c8a26b' }
+// theme keys follow the person's theme; cyan and brown have none, so mid tones that read on light and dark
+const C = { clay: 'claude', green: 'success', yellow: 'warning', mag: 'merged', blue: 'suggestion', red: 'error', fg: 'text', cyan: '#3fa3b0', brown: '#a8804a' }
 type Look = { hat: [string, string]; props: string[][]; pc: string }
 // Frames from the mockup's TSTAGE
 const LOOK: Record<Stage, Look> = {

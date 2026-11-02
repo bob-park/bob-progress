@@ -162,11 +162,13 @@ const barLine = (ui: UI, key: string, before: JSX.Element[], list: Task[], barW:
       {before.length > 0 ? <Text>{before}</Text> : null}
       <Box flexGrow={1} flexDirection="row" height={1}>
         {/* coloured boxes share the row by count, so the bar always fits and follows the theme */}
-        {[
-          ['done', done, 'success'],
-          ['active', active, 'warning'],
-          ['todo', list.length - done - active, 'inactive'],
-        ].map(([k, n, c]) => (Number(n) > 0 ? <Box key={String(k)} flexGrow={Number(n)} backgroundColor={String(c)} /> : null))}
+        {(
+          [
+            ['done', done, 'success'],
+            ['active', active, 'warning'],
+            ['todo', list.length - done - active, 'inactive'],
+          ] as const
+        ).map(([k, n, c]) => (n > 0 ? <Box key={k} flexGrow={n} backgroundColor={c} /> : null))}
       </Box>
       <Text wrap="truncate">
         <Text bold color="suggestion">{`${done}/${list.length}`}</Text>
@@ -252,7 +254,7 @@ export const tasksPanel = (ui: UI, list: Task[], doneAt: number | null, v: Frame
 
 // ---- agents: running ones first, the latest on top, then the latest ended ones
 const ENDED_SHOWN = 3
-const COLOR = { running: 'warning', waiting: 'cyan', done: undefined, failed: 'error' } as const
+const COLOR = { running: 'warning', waiting: 'suggestion', done: undefined, failed: 'error' } as const
 
 /** `[•_•]⚙ 1: label --- Model mm:ss`, the bit as wide as before the icon was; an ended row keeps its final time */
 export const agentRow = (ui: UI, r: AgentRun, left: string, right: string, fill: string, v: Frame) => {

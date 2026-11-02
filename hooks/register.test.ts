@@ -304,6 +304,7 @@ test('an agent waiting on its background work stays running, and a resumed one r
   await end('A2')
   let ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
   expect(await ui.find({ text: /^▐-_-▌z +1: Scan / })).toBeDefined()
+  expect((await ui.find({ text: /^▐-_-▌z +1: Scan / }))?.props.color).toBe('suggestion') // a theme key, not raw cyan
   expect(await ui.find({ text: /^▐\^_\^▌✓ +2: Lint / })).toBeDefined()
   expect(await ui.find({ text: /^  1 running · 1 done$/ })).toBeDefined() // waiting counts as running
   await ui.unmount()

@@ -109,3 +109,8 @@ test('sprites swap their white and pale pixels on a light background; terminal p
 test('botFrame: every running role moves its tool between frames', () => {
   for (const k of ['impl', 'review', 'fix', 'agent'] as const) expect(botFrame(k, 3, 'running')).not.toEqual(botFrame(k, 0, 'running'))
 })
+
+test('terminal stage sprites paint with theme keys or mid tones that read on light and dark', () => {
+  const ok = new Set(['claude', 'warning', 'success', 'error', 'suggestion', 'merged', 'text', '#a8804a', '#3fa3b0'])
+  for (const st of ORDER) for (let f = 0; f < 15; f++) for (const line of stageFrame(st, f, true)) for (const seg of line) expect(ok.has(seg.color)).toBe(true)
+})

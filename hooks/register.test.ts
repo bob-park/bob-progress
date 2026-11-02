@@ -776,7 +776,7 @@ test('main panel shows the version', async ($, on) => {
   mock.clock(on)
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
   // a Box's text holds its children's: the Text itself carries the dim
-  expect((await ui.find({ type: 'Text', text: /v1\.2\.0/ }))?.props.dimColor).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /v1\.2\.1/ }))?.props.dimColor).toBe(true)
 })
 
 test('the main header fits a narrow pane: the version drops when it does not fit', async ($, on) => {
@@ -787,7 +787,7 @@ test('the main header fits a narrow pane: the version drops when it does not fit
     const ui = await $.ui.mount({ ...pane, props: { ...pane.props, bodyColumns: cols }, surface: 'terminal' } as never)
     const head = await ui.find({ type: 'Box', text: /· main.*○ idle( +v[\d.]+)?$/ })
     expect(head?.text.length).toBeLessThanOrEqual(cols - 4)
-    expect(!!(await ui.find({ type: 'Text', text: /v1\.2\.0/ }))).toBe(shown)
+    expect(!!(await ui.find({ type: 'Text', text: /v1\.2\.1/ }))).toBe(shown)
     await ui.unmount()
   }
 })
@@ -926,14 +926,14 @@ test('on desktop the execute bar is coloured boxes that fit the row, on a wide o
   }
 })
 
-test('sections and superpowers stages are spaced with a sm gap (0 rows in the terminal)', async ($, on) => {
+test('sections and superpowers stages are spaced with a md gap (1 row in the terminal)', async ($, on) => {
   mock.clock(on)
   on('skill.prompt', () => ({ text: '' }))
   await $.skill.prompt({ skill: 'superpowers:brainstorming', text: '' })
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...pane, surface } as never)
-    expect((await ui.find({ type: 'Box' }))?.props.gap).toBe('sm')
-    const stages = (await ui.findAll({ type: 'Box' })).filter(b => b.props.gap === 'sm' && /brainstorm/.test(b.text) && !/main/.test(b.text))
+    expect((await ui.find({ type: 'Box' }))?.props.gap).toBe('md')
+    const stages = (await ui.findAll({ type: 'Box' })).filter(b => b.props.gap === 'md' && /brainstorm/.test(b.text) && !/main/.test(b.text))
     expect(stages).toHaveLength(1)
     await ui.unmount()
   }

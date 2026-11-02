@@ -418,8 +418,8 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
         <Text color="warning" bold>⚡ SUPERPOWERS</Text>
         {sp.path ? <Text color="magenta" bold>{sp.path.toUpperCase()}</Text> : null}
       </Box>
-      {/* a gap between stages: the terminal draws sm as 0 rows, desktop spaces them */}
-      <Box flexDirection="column" gap="sm">
+      {/* a gap between stages: one row in the terminal, the surface's own md on desktop */}
+      <Box flexDirection="column" gap="md">
         {pipeline(sp).map(s => (
           <Box key={s.stage} flexDirection="column">
             {row(s)}

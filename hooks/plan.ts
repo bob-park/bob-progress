@@ -51,7 +51,7 @@ export const keepCompleted = (prev: Task[], next: Task[]): Task[] => {
 
 /** executing-plans takes each task with `task-start PLAN N`: N, when PLAN is this plan */
 export const startedOf = (command: string, planPath: string) => {
-  const m = /\btask-start\s+(\S+)\s+(\d+[a-zA-Z]?)\b/.exec(command)
+  const m = /\btask-start['"]?\s+(\S+)\s+['"]?(\d+[a-zA-Z]?)\b/.exec(command)
   const base = (p: string) => p.replace(/['"]/g, '').slice(p.replace(/['"]/g, '').lastIndexOf('/') + 1)
   return m && base(m[1]!) === base(planPath) ? m[2]!.toLowerCase() : undefined
 }

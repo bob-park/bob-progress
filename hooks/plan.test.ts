@@ -146,6 +146,8 @@ test('startedOf reads task-start for the same plan only', () => {
   expect(startedOf('task-start ./docs/superpowers/plans/2026-01-01-x.md 1', P)).toBe('1')
   expect(startedOf('task-start docs/superpowers/plans/other.md 2', P)).toBeUndefined()
   expect(startedOf('task-brief docs/superpowers/plans/2026-01-01-x.md 2', P)).toBeUndefined()
+  expect(startedOf(`"/h/executing-plans/scripts/task-start" docs/superpowers/plans/2026-01-01-x.md 4`, P)).toBe('4')
+  expect(startedOf(`'/h/scripts/task-start' docs/superpowers/plans/2026-01-01-x.md "5"`, P)).toBe('5')
 })
 
 test('started task is current unless dispatched wins or it is done', () => {

@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing'
-import { barSvg, BOT_W, botFrame, botKind, botStatus, botSvg, STAGE_W, stageFrame, stageSvg } from './characters'
+import type { Seg } from './characters'
+import { BOT_W, botFrame, botKind, botStatus, botSvg, STAGE_W, stageFrame, stageSvg } from './characters'
 import { ORDER } from './superpowers'
 
 const width = (segs: { text: string }[]) => segs.reduce((n, s) => n + [...s.text].length, 0)
@@ -29,15 +30,18 @@ test('stageFrame: feet swap every 5 frames, props every 3', () => {
   expect(stageFrame('execute', 3, true)[1]![1]).not.toEqual(stageFrame('execute', 0, true)[1]![1])
 })
 
-test('botFrame: one glyph per status, BOT_W cells wide', () => {
-  expect(botFrame('impl', 0, 'running').text.trimEnd()).toBe('[•_•]⚙')
-  expect(botFrame('impl', 3, 'running').text.trimEnd()).toBe('[•_•]✲')
-  expect(botFrame('review', 0, 'waiting').text.trimEnd()).toBe('[-_-]z')
-  expect(botFrame('fix', 0, 'done').text.trimEnd()).toBe('[^_^]✓')
-  expect(botFrame('agent', 0, 'failed').text.trimEnd()).toBe('[x_x]✗')
-  expect(botFrame('review', 0, 'issues').text.trimEnd()).toBe('[o_o]⚠')
+test('botFrame: a one-line little Clawd, face on clay, BOT_W cells, one face per status', () => {
+  const txt = (s: Seg[]) => s.map(x => x.text).join('')
+  expect(txt(botFrame('impl', 0, 'running')).trimEnd()).toBe('▐•_•▌⚙')
+  expect(txt(botFrame('impl', 3, 'running')).trimEnd()).toBe('▐•_•▌✲')
+  expect(txt(botFrame('review', 0, 'waiting')).trimEnd()).toBe('▐-_-▌z')
+  expect(txt(botFrame('fix', 0, 'done')).trimEnd()).toBe('▐^_^▌✓')
+  expect(txt(botFrame('agent', 0, 'failed')).trimEnd()).toBe('▐x_x▌✗')
+  expect(txt(botFrame('review', 0, 'issues')).trimEnd()).toBe('▐o_o▌⚠')
+  expect(botFrame('impl', 0, 'running')[1]).toEqual({ text: '•_•', color: '#1F1E1D', bg: '#D97757' })
+  expect(botFrame('fix', 0, 'done')[3]!.color).toBe('success')
   for (const st of ['waiting', 'done', 'failed', 'issues'] as const) expect(botFrame('impl', 7, st)).toEqual(botFrame('impl', 0, st))
-  for (const k of ['impl', 'review', 'fix', 'agent'] as const) for (let f = 0; f < 6; f++) expect([...botFrame(k, f, 'running').text].length).toBe(BOT_W)
+  for (const k of ['impl', 'review', 'fix', 'agent'] as const) for (let f = 0; f < 6; f++) expect([...txt(botFrame(k, f, 'running'))].length).toBe(BOT_W)
 })
 
 test('botKind and botStatus read role, phase and verdict; failed beats issues', () => {
@@ -95,30 +99,18 @@ test('only moving sprites draw as an interactive frame', () => {
   expect(stageSvg('execute', 4, false).isInteractive).toBeUndefined()
 })
 
-test('barSvg: segments by share, no empty rect, stable, moves only with active work', () => {
-  const a = barSvg(3, 1, 7, true)
-  expect(a.source).toContain('#5fbf8f')
-  expect(a.source).toContain('#f2c94c')
-  expect(a.source).toContain('prefers-reduced-motion')
-  expect(a).toEqual(barSvg(3, 1, 7, true))
-  expect(a.alt).toBe('3/7')
-  expect(a.isInteractive).toBe(true)
-  expect(barSvg(3, 1, 7, false).isInteractive).toBeUndefined()
-  expect(barSvg(3, 0, 7, true).isInteractive).toBeUndefined()
-  expect(barSvg(0, 0, 7, false).source).not.toContain('#5fbf8f')
-  expect(barSvg(7, 0, 7, false).source).not.toContain('#3a3833')
-  for (const s of [barSvg(0, 0, 7, false), barSvg(7, 0, 7, true)]) expect(s.source).not.toMatch(/NaN|width="0"/)
+test('sprites swap their white and pale pixels on a light background; terminal props follow the theme text', () => {
+  const src = stageSvg('spec', 4, false).source
+  expect(src).toContain('prefers-color-scheme: light')
+  expect(src).toContain('class="pW"')
+  expect(stageFrame('spec', 0, true)[2]![1]!.color).toBe('text')
 })
 
-test('barSvg: coordinates stay rounded to 2 places', () => {
-  expect(barSvg(2, 4, 7, true).source).not.toMatch(/\d\.\d{3,}/)
+test('botFrame: every running role moves its tool between frames', () => {
+  for (const k of ['impl', 'review', 'fix', 'agent'] as const) expect(botFrame(k, 3, 'running')).not.toEqual(botFrame(k, 0, 'running'))
 })
 
-test('barSvg: an active part too thin to sweep draws still, without a frame', () => {
-  expect(barSvg(0, 1, 30, true).isInteractive).toBeUndefined()
-  expect(barSvg(0, 1, 30, true).source).not.toContain('class="sw"')
-})
-
-test('barSvg: an idle bar carries no style', () => {
-  expect(barSvg(3, 0, 7, false).source).not.toContain('<style>')
+test('terminal stage sprites paint with theme keys or mid tones that read on light and dark', () => {
+  const ok = new Set(['claude', 'warning', 'success', 'error', 'suggestion', 'merged', 'text', '#a8804a', '#3fa3b0'])
+  for (const st of ORDER) for (let f = 0; f < 15; f++) for (const line of stageFrame(st, f, true)) for (const seg of line) expect(ok.has(seg.color)).toBe(true)
 })

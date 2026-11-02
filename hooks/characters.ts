@@ -1,6 +1,6 @@
 import type { AgentRun, Stage } from '../types'
 
-export type Seg = { text: string; color: string }
+export type Seg = { text: string; color: string; bg?: string }
 export type BotKind = 'impl' | 'review' | 'fix' | 'agent'
 export type BotStatus = 'running' | 'waiting' | 'done' | 'failed' | 'issues'
 
@@ -20,7 +20,8 @@ export const STAGE_W = 12
 /** Cells per bot glyph */
 export const BOT_W = 7
 
-const C = { clay: '#D97757', green: '#5fbf8f', yellow: '#f2c94c', mag: '#e056fd', blue: '#61afef', red: '#e5534b', fg: '#e8e6df', cyan: '#56b6c2', brown: '#c8a26b' }
+// theme keys follow the person's theme; cyan and brown have none, so mid tones that read on light and dark
+const C = { clay: 'claude', green: 'success', yellow: 'warning', mag: 'merged', blue: 'suggestion', red: 'error', fg: 'text', cyan: '#3fa3b0', brown: '#a8804a' }
 type Look = { hat: [string, string]; props: string[][]; pc: string }
 // Frames from the mockup's TSTAGE
 const LOOK: Record<Stage, Look> = {
@@ -43,22 +44,26 @@ export const stageFrame = (stage: Stage, f: number, on: boolean): Seg[][] => {
   return body.map((b, i) => [b, { text: p[i]!, color: s.pc }])
 }
 
-const BOT: Record<BotKind, { run: string[]; c: string }> = {
-  impl: { run: ['[•_•]⚙', '[•_•]✲'], c: '#378ADD' },
-  review: { run: ['[•_•]⌕', '[•_•] ⌕'], c: '#E0A030' },
-  fix: { run: ['[•_•]✚', '[•‸•]✚'], c: '#E5534B' },
-  agent: { run: ['[•_•]»', '[•_•] »'], c: '#1D9E75' },
+// two cells each: impl swaps its glyph, the others step their tool a cell over
+const BOT: Record<BotKind, { tool: [string, string]; c: string }> = {
+  impl: { tool: ['⚙ ', '✲ '], c: '#378ADD' },
+  review: { tool: ['⌕ ', ' ⌕'], c: '#E0A030' },
+  fix: { tool: ['✚ ', ' ✚'], c: '#E5534B' },
+  agent: { tool: ['» ', ' »'], c: '#1D9E75' },
 }
-const pad = (t: string) => t + ' '.repeat(BOT_W - [...t].length)
+const FACE: Record<BotStatus, string> = { running: '•_•', waiting: '-_-', done: '^_^', failed: 'x_x', issues: 'o_o' }
 
-export const botFrame = (kind: BotKind, f: number, status: BotStatus): Seg => {
+/** A one-line little Clawd: `▐•_•▌⚙`, the face on clay, its edges and tool in the role's colour */
+export const botFrame = (kind: BotKind, f: number, status: BotStatus): Seg[] => {
   const b = BOT[kind]
-  const [t, c] = status === 'done' ? ['[^_^]✓', 'green'] : status === 'failed' ? ['[x_x]✗', 'red'] : status === 'issues' ? ['[o_o]⚠', '#E0A030'] : status === 'waiting' ? ['[-_-]z', b.c] : [b.run[Math.floor(f / 3) % 2]!, b.c]
-  return { text: pad(t), color: c }
+  const [tool, c] = status === 'done' ? ['✓ ', 'success'] : status === 'failed' ? ['✗ ', 'error'] : status === 'issues' ? ['⚠ ', 'warning'] : status === 'waiting' ? ['z ', b.c] : [b.tool[Math.floor(f / 3) % 2]!, b.c]
+  return [{ text: '▐', color: b.c }, { text: FACE[status], color: '#1F1E1D', bg: '#D97757' }, { text: '▌', color: b.c }, { text: tool, color: c }]
 }
 
 // ---------- desktop pixel sprites (from the mockup's layer/clawd/STAGES/ROLES/bot) ----------
 const PX: Record<string, string> = { '#': '#D97757', K: '#1F1E1D', Y: '#F2C94C', y: '#B8901E', B: '#8B5A2B', G: '#A3A8AE', W: '#F5F3EE', w: '#B9B6AE', U: '#4A90D9', u: '#9CC3EE', P: '#9B6BD6', g: '#5FBF6F', T: '#D9B77E', R: '#E5534B', M: '#E056FD', L: '#9ED8F5' }
+
+const PALE = ['W', 'w', 'L', 'u']
 
 /** One rect per horizontal run of a colour; '.' is empty */
 const layer = (rows: string[], x: number, y: number, cls = '', over: Record<string, string> = {}) => {
@@ -69,7 +74,9 @@ const layer = (rows: string[], x: number, y: number, cls = '', over: Record<stri
       const col = cs[i] === '.' ? undefined : (over[cs[i]!] ?? PX[cs[i]!])
       let n = 1
       while (col && i + n < cs.length && (over[cs[i + n]!] ?? PX[cs[i + n]!]) === col && cs[i + n] !== '.') n++
-      if (col) s += `<rect x="${x + i}" y="${y + j}" width="${n}" height="1" fill="${col}"/>`
+      // white and pale pixels carry a class, so a light background can darken them
+      const pale = !over[cs[i]!] && PALE.includes(cs[i]!) ? ` class="p${cs[i]}"` : ''
+      if (col) s += `<rect${pale} x="${x + i}" y="${y + j}" width="${n}" height="1" fill="${col}"/>`
       i += n
     }
   })
@@ -116,7 +123,8 @@ const CSS = `<style>.tp g{transform-box:fill-box}.tp .spark{opacity:0}
 .tp.on .c1{animation:blink .8s steps(1) infinite}.tp.on .c2{animation:blink .8s steps(1) infinite .4s}
 .tp.on .hop{animation:hop .4s steps(1) infinite}@keyframes hop{50%{transform:translateY(-1px)}}
 .tp.on .tool{transform-origin:0% 100%;animation:wig .6s steps(1) infinite}@keyframes wig{50%{transform:rotate(-20deg)}}
-@media (prefers-reduced-motion: reduce){.tp.on *{animation:none!important}}</style>`
+@media (prefers-reduced-motion: reduce){.tp.on *{animation:none!important}}
+@media (prefers-color-scheme: light){.tp .pW{fill:#4a4843}.tp .pw{fill:#7d7a72}.tp .pL{fill:#2f6f9f}.tp .pu{fill:#4a7fb5}}</style>`
 
 const svgDoc = (body: string, w: number, h: number, scale: number, on: boolean) =>
   `<svg class="tp${on ? ' on' : ''}" xmlns="http://www.w3.org/2000/svg" viewBox="0 -1 ${w} ${h}" width="${w * scale}" height="${h * scale}" shape-rendering="crispEdges">${CSS}${body}</svg>`
@@ -151,23 +159,4 @@ export const botSvg = (kind: BotKind, scale: number, status: BotStatus) => {
   const side = mark ? layer(mark, 15, mark.length > 3 ? 1 : 2) : layer(r.tool, 15, 2, 'tool')
   const body = `<g class="hop">${layer(MINI, 0, 0, '', { H: r.color })}${face}${side}</g>${layer(MINI_LEGS, 0, MINI.length)}`
   return { source: svgDoc(body, 18, 10, scale, on), width: 18 * scale, height: 10 * scale, alt: `${kind} ${status}`, ...(on ? { isInteractive: true as const } : {}) }
-}
-
-const BAR = { done: '#5fbf8f', active: '#f2c94c', todo: '#3a3833', hi: '#fff3c4' }
-const r2 = (n: number) => Math.round(n * 100) / 100
-
-/** The plan bar for surfaces that draw Svg: done, active and todo by share, stretched to its box; a bright band sweeps the active part while it works */
-export const barSvg = (done: number, active: number, total: number, on: boolean) => {
-  const t = Math.max(1, total)
-  const d = r2((done / t) * 100), a = r2((active / t) * 100), rest = r2(100 - d - a)
-  const hiW = Math.min(4, a)
-  // a part no wider than the band has nowhere to sweep: drawn still, so no frame
-  const moving = on && a > hiW
-  const rect = (x: number, w: number, fill: string, cls = '') => (w > 0 ? `<rect${cls ? ` class="${cls}"` : ''} x="${x}" y="0" width="${w}" height="6" fill="${fill}"/>` : '')
-  const css = moving
-    ? `<style>.tp.on .sw{animation:sw 1s steps(10) infinite}@keyframes sw{to{transform:translateX(${r2(a - hiW)}px)}}@media (prefers-reduced-motion: reduce){.tp.on *{animation:none!important}}</style>`
-    : ''
-  const body = rect(0, d, BAR.done) + rect(d, a, BAR.active) + rect(r2(d + a), rest, BAR.todo) + (moving ? rect(d, hiW, BAR.hi, 'sw') : '')
-  const source = `<svg class="tp${moving ? ' on' : ''}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 6" preserveAspectRatio="none" width="100%" height="10" shape-rendering="crispEdges">${css}${body}</svg>`
-  return { source, height: 10, alt: `${done}/${total}`, ...(moving ? { isInteractive: true as const } : {}) }
 }

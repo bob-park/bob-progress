@@ -1,7 +1,7 @@
 import type { EngineInterface } from 'claude-code'
 
 import type { Activity, AgentRun, Main, Sp, Stage, Task } from '../types'
-import { barSvg, BOT_W, botFrame, botKind, botStatus, botSvg, phaseOf, STAGE_NAME, STAGE_W, stageFrame, stageSvg } from './characters'
+import { BOT_W, botFrame, botKind, botStatus, botSvg, phaseOf, STAGE_NAME, STAGE_W, stageFrame, stageSvg } from './characters'
 import { fitTail, pipeline, stageOfRun, stageTimes } from './superpowers'
 import type { Step } from './superpowers'
 
@@ -127,23 +127,23 @@ const planBar = ({ Text }: UI, list: Task[], barW: number, v: Frame) => {
   // a bright cell sweeps across the in-progress part of the bar while working
   const sweep = v.busy && activeCells > 0 ? v.f % activeCells : -1
   return [
-    <Text key="done" color="green">{'█'.repeat(filled)}</Text>,
+    <Text key="done" color="success">{'█'.repeat(filled)}</Text>,
     sweep >= 0 ? (
-      <Text key="active" color="yellow">
+      <Text key="active" color="warning">
         {'▓'.repeat(sweep)}
         <Text bold>█</Text>
         {'▓'.repeat(activeCells - sweep - 1)}
       </Text>
     ) : (
-      <Text key="active" color="yellow">{'▓'.repeat(activeCells)}</Text>
+      <Text key="active" color="warning">{'▓'.repeat(activeCells)}</Text>
     ),
     <Text key="todo" dimColor>{'░'.repeat(barW - filled - activeCells)}</Text>,
     // count sits right after the bar so the eye doesn't travel
-    <Text key="count" bold color="blue">{` ${done}/${total}`}</Text>,
+    <Text key="count" bold color="suggestion">{` ${done}/${total}`}</Text>,
   ]
 }
 
-/** A row with the plan bar: the terminal draws its cells inline; a surface with Svg stretches an Svg bar between `before` and the count */
+/** A row with the plan bar: the terminal draws its cells inline; a surface with Svg stretches coloured boxes between `before` and the count */
 const barLine = (ui: UI, key: string, before: JSX.Element[], list: Task[], barW: number, after: JSX.Element[], v: Frame) => {
   const { Box, Text } = ui
   const Svg = svgOf(ui, v)
@@ -160,11 +160,18 @@ const barLine = (ui: UI, key: string, before: JSX.Element[], list: Task[], barW:
   return (
     <Box key={key} flexDirection="row" gap={1} alignItems="center">
       {before.length > 0 ? <Text>{before}</Text> : null}
-      <Box flexGrow={1}>
-        <Svg {...barSvg(done, active, list.length, v.busy)} />
+      <Box flexGrow={1} flexDirection="row" height={1}>
+        {/* coloured boxes share the row by count, so the bar always fits and follows the theme */}
+        {(
+          [
+            ['done', done, 'success'],
+            ['active', active, 'warning'],
+            ['todo', list.length - done - active, 'inactive'],
+          ] as const
+        ).map(([k, n, c]) => (n > 0 ? <Box key={k} flexGrow={n} backgroundColor={c} /> : null))}
       </Box>
       <Text wrap="truncate">
-        <Text bold color="blue">{`${done}/${list.length}`}</Text>
+        <Text bold color="suggestion">{`${done}/${list.length}`}</Text>
         {after}
       </Text>
     </Box>
@@ -176,9 +183,9 @@ const planNow = ({ Text }: UI, list: Task[], doneAt: number | null, v: Frame) =>
   const active = list.filter(t => t.status === 'in_progress')
   const next = list.find(t => t.status === 'pending')
   return count(list) === list.length ? (
-    <Text key="now" color="green">{doneAt !== null ? `✓ completed · ${doneTime(doneAt)}` : '✓ completed'}</Text>
+    <Text key="now" color="success">{doneAt !== null ? `✓ completed · ${doneTime(doneAt)}` : '✓ completed'}</Text>
   ) : active.length > 0 ? (
-    <Text key="now" color="yellow" wrap="truncate">{`${v.busy ? v.spin : '▸'} ${active.map(numbered).join(', ')}`}</Text>
+    <Text key="now" color="warning" wrap="truncate">{`${v.busy ? v.spin : '▸'} ${active.map(numbered).join(', ')}`}</Text>
   ) : (
     <Text key="now" dimColor wrap="truncate">{`○ 다음: ${next ? numbered(next) : '—'}`}</Text>
   )
@@ -199,7 +206,8 @@ export const shimmer = (text: string, f: number) => {
   }
   return runs
 }
-const TONE = { hi: '#fff3c4', mid: '#f0cf6e', base: 'yellow' } as const
+// a light tint vanishes on a white background: the bright cell is inverse, its neighbours bold
+const TONE = { hi: { bold: true, inverse: true }, mid: { bold: true, inverse: false }, base: { bold: false, inverse: false } } as const
 
 const spNow = (ui: UI, list: Task[], doneAt: number | null, runs: AgentRun[], v: Frame) => {
   const active = list.filter(t => t.status === 'in_progress')
@@ -214,11 +222,11 @@ const spNow = (ui: UI, list: Task[], doneAt: number | null, runs: AgentRun[], v:
   return v.busy ? (
     <Text key="now" wrap="truncate">
       {shimmer(line, v.f).map((r, i) => (
-        <Text key={String(i)} color={TONE[r.tone]} bold={r.tone === 'hi'}>{r.text}</Text>
+        <Text key={String(i)} color="warning" {...TONE[r.tone]}>{r.text}</Text>
       ))}
     </Text>
   ) : (
-    <Text key="now" color="yellow" wrap="truncate">{line}</Text>
+    <Text key="now" color="warning" wrap="truncate">{line}</Text>
   )
 }
 
@@ -237,8 +245,8 @@ export const tasksPanel = (ui: UI, list: Task[], doneAt: number | null, v: Frame
   const { Box, Text } = ui
   const allDone = list.every(t => t.status === 'completed')
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="green" paddingX={1} width={v.W}>
-      <Text color="green" bold>{allDone ? '✓ TASKS' : 'TASKS'}</Text>
+    <Box flexDirection="column" borderStyle="round" borderColor="success" paddingX={1} width={v.W}>
+      <Text color="success" bold>{allDone ? '✓ TASKS' : 'TASKS'}</Text>
       {progressLines(ui, list, doneAt, v)}
     </Box>
   )
@@ -246,7 +254,7 @@ export const tasksPanel = (ui: UI, list: Task[], doneAt: number | null, v: Frame
 
 // ---- agents: running ones first, the latest on top, then the latest ended ones
 const ENDED_SHOWN = 3
-const COLOR = { running: 'yellow', waiting: 'cyan', done: undefined, failed: 'red' } as const
+const COLOR = { running: 'warning', waiting: 'suggestion', done: undefined, failed: 'error' } as const
 
 /** `[•_•]⚙ 1: label --- Model mm:ss`, the bit as wide as before the icon was; an ended row keeps its final time */
 export const agentRow = (ui: UI, r: AgentRun, left: string, right: string, fill: string, v: Frame) => {
@@ -263,10 +271,11 @@ export const agentRow = (ui: UI, r: AgentRun, left: string, right: string, fill:
         <Text {...tone}>{line.trimStart()}</Text>
       </Box>
     )
-  const bot = botFrame(kind, v.f, status)
   return (
     <Text key={String(r.n)} {...tone}>
-      <Text color={bot.color}>{bot.text}</Text>
+      {botFrame(kind, v.f, status).map((b, i) => (
+        <Text key={`b${i}`} color={b.color} backgroundColor={b.bg}>{b.text}</Text>
+      ))}
       {line}
     </Text>
   )
@@ -296,7 +305,7 @@ export const agentsPanel = (ui: UI, all: AgentRun[], v: Frame) => {
 const ROLES_SHOWN = 5
 /** Below this the terminal draws the current stage as a plain row */
 export const STAGE_CARD_MIN_W = 40
-const STAGE_COLOR = { done: 'green', current: 'yellow', todo: undefined } as const
+const STAGE_COLOR = { done: 'success', current: 'warning', todo: undefined } as const
 export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame) => {
   const { Box, Text } = ui
   const Svg = svgOf(ui, v)
@@ -341,14 +350,11 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
     const rw = v.W - 4 - STAGE_W - 2
     const total = plan.length
     const withPlan = stage === 'execute' && total > 0
+    // the nickname heads the card, then the stage, and on execute its bar and what runs now
     const right = [
-      <Text key="head" color="yellow" bold wrap="truncate">{time ? lineUp(mark.current, stage, time, rw + 4, ' ') : `${mark.current} ${stage}`}</Text>,
-      withPlan ? (
-        barLine(ui, 'bar', [], plan, Math.max(3, rw - ` ${total}/${total}`.length), [], v)
-      ) : (
-        <Text key="name" bold wrap="truncate">{STAGE_NAME[stage]}</Text>
-      ),
-      withPlan ? spNow(ui, plan, sp.doneAt, runs, { ...v, W: rw + 4 }) : null,
+      <Text key="name" bold wrap="truncate">{STAGE_NAME[stage]}</Text>,
+      <Text key="head" color="warning" bold wrap="truncate">{time ? lineUp(mark.current, stage, time, rw + 4, ' ') : `${mark.current} ${stage}`}</Text>,
+      ...(withPlan ? [barLine(ui, 'bar', [], plan, Math.max(3, rw - ` ${total}/${total}`.length), [], v), spNow(ui, plan, sp.doneAt, runs, { ...v, W: rw + 4 })] : []),
     ]
     if (Svg)
       return (
@@ -409,13 +415,13 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
     )
   }
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1} width={v.W}>
+    <Box flexDirection="column" borderStyle="round" borderColor="warning" paddingX={1} width={v.W}>
       <Box justifyContent="space-between">
-        <Text color="yellow" bold>⚡ SUPERPOWERS</Text>
+        <Text color="warning" bold>⚡ SUPERPOWERS</Text>
         {sp.path ? <Text color="magenta" bold>{sp.path.toUpperCase()}</Text> : null}
       </Box>
-      {/* a gap between stages: the terminal draws sm as 0 rows, desktop spaces them */}
-      <Box flexDirection="column" gap="sm">
+      {/* a gap between stages: one row in the terminal, the surface's own md on desktop */}
+      <Box flexDirection="column" gap="md">
         {pipeline(sp).map(s => (
           <Box key={s.stage} flexDirection="column">
             {row(s)}

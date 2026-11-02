@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { Ev, ToolInput } from './ev'
 import { filesOf } from './plan'
-import { currentOf, derive, INIT, step, WARN } from './state'
+import { currentOf, derive, editedOf, INIT, pushActivity, step, WARN } from './state'
 import type { Effect, S } from './state'
 
 const fold = (evs: Ev[], from: S = INIT) => evs.reduce((s, ev) => step(s, ev).s, from)
@@ -93,7 +93,7 @@ test('skills append; the same name twice in a row is one entry; 30 kept', () => 
 
 test('main-loop tools show as activity rows that settle ok or error; 10 kept, ids continue', () => {
   let s = fold([{ t: 'tool.start', at: 1, id: 't1', tool: 'Bash', input: { command: 'bun test', description: 'Run tests' } }])
-  expect(s.activity).toEqual([{ id: 1, at: 1, label: 'Bash · Run tests', status: 'running' }])
+  expect(s.activity).toEqual([{ id: 1, at: 1, label: 'Bash · Run tests', status: 'running', toolId: 't1' }])
   s = fold([{ t: 'tool.end', at: 2, id: 't1', tool: 'Bash', input: { command: 'bun test', description: 'Run tests' }, ok: false, edited: [] }], s)
   expect(s.activity[0]?.status).toBe('error')
   s = fold(call('t2', 'Read', { file_path: '/a/plan.ts' }), s)
@@ -265,4 +265,39 @@ test('done stamps take ev.at when a list becomes all done and clear when it open
   expect(s.sp.doneAt).toBeNull()
   s = fold(call('t', 'TodoWrite', { todos: [{ content: 'a', status: 'completed' }] }, { at: 50 }), s)
   expect(s.main.doneAt).toBe(50)
+})
+
+test('a new activity row takes the next id after the kept rows, never one in use', () => {
+  const kept = [{ id: 1, at: 0, label: 'Read · old.ts', status: 'error' as const }]
+  const { id, list } = pushActivity(kept, { at: 1, label: 'Bash · New', status: 'running' })
+  expect(id).toBe(2)
+  expect(list.map(a => a.id)).toEqual([1, 2])
+  // capped at the latest 10
+  const many = Array.from({ length: 10 }, (_, k) => ({ id: k + 1, at: 0, label: 'x', status: 'ok' as const }))
+  expect(pushActivity(many, { at: 1, label: 'y', status: 'running' }).list.map(a => a.id)).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+})
+
+
+test("a subagent's turn.start does not set the main loop running", () => {
+  expect(fold([{ t: 'turn.start', at: 1, agentId: 'A' }]).main.isRunning).toBe(false)
+})
+
+test('two identical calls in flight each settle their own row by tool id', () => {
+  const input = { command: 'ls' }
+  const s = fold([
+    { t: 'tool.start', at: 1, id: 'a', tool: 'Bash', input },
+    { t: 'tool.start', at: 1, id: 'b', tool: 'Bash', input },
+    { t: 'tool.end', at: 2, id: 'a', tool: 'Bash', input, ok: false, edited: [] },
+  ])
+  expect(s.activity.map(a => a.status)).toEqual(['error', 'running'])
+})
+
+test('editedOf: bashEditDiff wins, else sed -i, > , >> and tee targets', () => {
+  expect(editedOf('python3 fix.py', { bashEditDiff: { changedFiles: ['/r/a.ts'] } })).toEqual(['/r/a.ts'])
+  expect(editedOf("sed -i '' 's/x/y/' AGENTS.md", {})).toEqual(['AGENTS.md'])
+  expect(editedOf("sed -i.bak -e 's/x/y/' a.md b.md", undefined)).toEqual(['a.md', 'b.md'])
+  expect(editedOf('echo hi > out.txt && echo yo >> log.md', {})).toEqual(['out.txt', 'log.md'])
+  expect(editedOf('echo x | tee -a notes.md', {})).toEqual(['notes.md'])
+  expect(editedOf('make 2> err.log &> all.log > /dev/null', {})).toEqual([])
+  expect(editedOf('sed -n 1p a.md', {})).toEqual([])
 })

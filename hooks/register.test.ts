@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
-import type { AgentRun } from '../types'
-import { pushActivity, withStatus } from './register'
+import type { TestBody } from 'claude-code/testing'
+import { WARN } from './state'
 import { doneTime, dur, phaseOf, shimmer } from './view'
 
 const pane = {
@@ -544,23 +544,6 @@ test('activity shows alongside open tasks', async ($, on) => {
   expect(await ui.find({ text: /^✓ Bash · Push branch$/ })).toBeDefined()
 })
 
-test('an agent saved without a status (0.6) reads as running until it ends', () => {
-  const old = { n: 1, label: 'Old scan', model: '', startedAt: 0 } as unknown as AgentRun
-  expect(withStatus(old).status).toBe('running')
-  expect(withStatus({ ...old, endedAt: 5 }).status).toBe('done')
-  expect(withStatus({ ...old, status: 'failed', endedAt: 5 }).status).toBe('failed')
-})
-
-test('a new activity row takes the next id after the kept rows, never one in use', () => {
-  const kept = [{ id: 1, at: 0, label: 'Read · old.ts', status: 'error' as const }]
-  const { id, list } = pushActivity(kept, { at: 1, label: 'Bash · New', status: 'running' })
-  expect(id).toBe(2)
-  expect(list.map(a => a.id)).toEqual([1, 2])
-  // capped at the latest 10
-  const many = Array.from({ length: 10 }, (_, k) => ({ id: k + 1, at: 0, label: 'x', status: 'ok' as const }))
-  expect(pushActivity(many, { at: 1, label: 'y', status: 'running' }).list.map(a => a.id)).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
-})
-
 test('a tool call that throws settles its activity row as ✗', async ($, on) => {
   mock.clock(on)
   on('tool.call', () => {
@@ -778,4 +761,57 @@ test('inline execution: task-start makes its task current; a failed call or anot
   files[LEDGER] += 'Task 1: complete (commits a..b, tests: yarn test → pass)\n'
   await bash('scripts/task-start docs/superpowers/plans/2026-01-01-x.md 2')
   expect(await current()).toBe('▸ #2 Docs')
+})
+
+test('main panel shows the version', async ($, on) => {
+  mock.clock(on)
+  const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
+  // a Box's text holds its children's: the Text itself carries the dim
+  expect((await ui.find({ type: 'Text', text: /v1\.0\.0/ }))?.props.dimColor).toBe(true)
+})
+
+const TWO = '### Task 1: Code\n**Files:**\n- Modify: `src/a.ts`\n- [ ] a\n### Task 2: Docs\n**Files:**\n- Modify: `AGENTS.md`\n- [ ] b\n'
+const executing = async (...[$, on, result]: [...Parameters<TestBody>, unknown]) => {
+  mock.clock(on)
+  on('fs.read', (_$, e) => (e.path === SP ? { value: TWO } : { deny: `ENOENT: ${e.path}` }))
+  on('tool.call', () => ({ result }) as never)
+  on('skill.prompt', () => ({ text: '' }))
+  await $.tool.call({ tool: 'Write', file_path: SP, content: '' } as never)
+  await $.skill.prompt({ skill: 'superpowers:executing-plans', text: '' })
+}
+const currentLine = async ($: Parameters<TestBody>[0]) => {
+  const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
+  const line = (await ui.find({ text: /^▸ #/ }))?.text
+  await ui.unmount()
+  return line
+}
+
+test("a Bash edit of a task's file makes it current", async ($, on) => {
+  await executing($, on, {})
+  await $.tool.call({ tool: 'Bash', command: "sed -i '' 's/x/y/' AGENTS.md" } as never)
+  expect(await currentLine($)).toMatch(/^▸ #2/)
+})
+
+test('bashEditDiff wins over the command parse', async ($, on) => {
+  await executing($, on, { bashEditDiff: { changedFiles: ['/r/src/a.ts'] } })
+  await $.tool.call({ tool: 'Bash', command: 'python3 fix.py' } as never)
+  expect(await currentLine($)).toMatch(/^▸ #1/)
+})
+
+test('an untied edit in execute gets the warning once', async ($, on) => {
+  await executing($, on, {})
+  const a = await $.tool.call({ tool: 'Edit', file_path: '/r/notes.md', old_string: 'a', new_string: 'b' } as never)
+  const b = await $.tool.call({ tool: 'Edit', file_path: '/r/notes.md', old_string: 'a', new_string: 'b' } as never)
+  expect(a.context ?? []).toContain(WARN)
+  expect(b.context ?? []).not.toContain(WARN)
+  expect(a.deny).toBeUndefined()
+  expect(b.deny).toBeUndefined()
+})
+
+test('0.9.x atoms left from a hot reload are ignored', async ($, on) => {
+  mock.clock(on)
+  // what 0.9.x stored under its own keys stays through the reload
+  on('state.get', (_$, e, next) => (['plan', 'sp', 'main', 'agents'].includes((e as { key: string }).key) ? ({ value: { value: { junk: 1 }, version: 1 } } as never) : next(e)))
+  const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
+  expect(await ui.find({ text: /· main$/ })).toBeDefined()
 })

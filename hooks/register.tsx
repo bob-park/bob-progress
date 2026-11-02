@@ -1,107 +1,78 @@
 import { atom, read, update } from 'claude-code'
 import type { BuiltinToolResults, EngineInterface, Register, Timer } from 'claude-code'
 
-import type { Activity, AgentRun, AgentStatus, Main, Plan, SkillUse, Sp, Task } from '../types'
-import { isPlanPath, keepCompleted, ledgerOwns, ledgerPath, parsePlan, startedOf } from './plan'
-import { addExtra, EMPTY_SP, extraOf, isSpecPath, pathFrom, reach, roleOf, sizeUp, skillName, stageOf, taskNOf, verdictOf, withAt } from './superpowers'
-import { activityOf, isSpPlan, live, pushActivity, shownTasks, spTasks, trimAgents, withStatus } from './state'
+import type { Ev, ToolInput } from './ev'
+import { ledgerPath } from './plan'
+import { derive, editedOf, INIT, step } from './state'
+import type { Effect, S } from './state'
+import { skillName } from './superpowers'
+import { VERSION } from './version'
 import { activityPanel, agentsPanel, FRAME_MS, mainPanel, skillsPanel, spPanel, SPINNER, tasksPanel } from './view'
 
-const tasks = atom({ plugin: 'task-progress', key: 'tasks' } as const, {} as Record<string, Task>)
-const plan = atom({ plugin: 'task-progress', key: 'plan' } as const, { path: '', tasks: [] } as Plan)
-const agents = atom({ plugin: 'task-progress', key: 'agents' } as const, {} as Record<string, AgentRun>)
-const skills = atom({ plugin: 'task-progress', key: 'skills' } as const, [] as SkillUse[])
-const activity = atom({ plugin: 'task-progress', key: 'activity' } as const, [] as Activity[])
-const sp = atom({ plugin: 'task-progress', key: 'sp' } as const, EMPTY_SP)
-const updateSp = ($: EngineInterface, patch: (s: Sp) => Sp) => update($, sp, s => patch(withAt({ ...EMPTY_SP, ...s })))
-
-const MAX_SKILLS = 30
-
-// a failed read keeps what the pane already shows
-const refreshPlan = async ($: EngineInterface, path: string, startedNow?: string) => {
-  const text = await $.fs.read(path).catch(() => null)
-  if (typeof text !== 'string') return
-  const at = ledgerPath(path)
-  const ledger = at ? await $.fs.read(at).catch(() => null) : null
-  const owned = typeof ledger === 'string' && ledgerOwns(path, ledger) ? ledger : undefined
-  const base = (p: string) => p.slice(p.lastIndexOf('/') + 1)
-  await update($, plan, prev => {
-    // same plan (maybe now in the main checkout): done stays done, the started task stays started
-    const same = !!prev?.path && base(prev.path) === base(path)
-    const started = startedNow ?? (same ? prev.started : undefined)
-    const tasks = parsePlan(text, owned, started)
-    return { path, tasks: same ? keepCompleted(prev.tasks, tasks) : tasks, ...(started ? { started } : {}) }
-  })
-}
-
-const DEFAULT_MAIN: Main = {
-  model: '',
-  effort: '',
-  mode: '',
-  steps: 0,
-  isRunning: false,
-  pct: null,
-  tokens: null,
-  window: 0,
-  compactions: 0,
-  costUsd: null,
-  limits: [],
-  doneAt: null,
-}
-const main = atom({ plugin: 'task-progress', key: 'main' } as const, DEFAULT_MAIN)
-
-export { pushActivity, withStatus }
+// the one atom: every hook folds an event into it; the 0.9 keys are never read
+const state = atom({ plugin: 'task-progress', key: 'state' } as const, INIT)
 
 const PANE = 'task-progress'
 const PANE_COLUMNS = 48
 
-const setMain = ($: EngineInterface, patch: (m: Main) => Partial<Main>) => update($, main, m => ({ ...DEFAULT_MAIN, ...m, ...patch({ ...DEFAULT_MAIN, ...m }) }))
-
-type Usage = Awaited<ReturnType<EngineInterface['session']['usage']>>
-const usageOf = (u: Pick<Usage, 'context' | 'cost' | 'rateLimits'>): Partial<Main> => ({
-  pct: u.context.percent ?? null,
-  tokens: u.context.tokens ?? null,
-  window: u.context.window,
-  costUsd: u.cost?.usd ?? null,
-  limits: u.rateLimits.map(r => ({ kind: r.kind, pct: r.percentUsed })),
-})
-
-// while a turn runs the pane redraws on a clock so the spinner and shimmer move
+// while anything works the pane redraws on a clock so the spinner and shimmer move
 const frame = () => Math.floor(Date.now() / FRAME_MS)
 let ticker: Timer | undefined
-// the clock runs while the main turn or any agent is working
-const animate = async ($: EngineInterface) => {
-  const [m, a] = await Promise.all([read($, main), read($, agents)])
-  const on = !!m?.isRunning || Object.values(a ?? {}).some(live)
-  if (on) ticker ??= $.clock.every(FRAME_MS, () => $.ui.invalidate('ui.render'))
+const animate = ($: EngineInterface, s: S) => {
+  if (derive(s, 0).busy) ticker ??= $.clock.every(FRAME_MS, () => $.ui.invalidate('ui.render'))
   else ticker = void ticker?.cancel()
 }
 
-const allDone = (list: Task[]) => list.length > 0 && list.every(t => t.status === 'completed')
-// SDD and executing-plans review the whole branch only once every task is done; review skills load mid-plan too
-const reviewReady = (p: Plan | undefined) => !isSpPlan(p) || allDone(p!.tasks)
+/** Folds the event into the atom; resolves the effects that step returned */
+type Untimed<E> = E extends Ev ? Omit<E, 'at'> : never
+const emit = async ($: EngineInterface, ev: Untimed<Ev>): Promise<Effect[]> => {
+  const full = { ...ev, at: await $.clock.now() } as Ev
+  let effects: Effect[] = []
+  let after: S = INIT
+  await update($, state, s => {
+    const r = step({ ...INIT, ...s }, full)
+    effects = r.effects
+    after = r.s
+    return r.s
+  })
+  animate($, after)
+  return effects
+}
+
+type Usage = Awaited<ReturnType<EngineInterface['session']['usage']>>
+const usageOf = (u: Pick<Usage, 'context' | 'cost' | 'rateLimits'>) =>
+  ({
+    t: 'usage',
+    pct: u.context.percent ?? null,
+    tokens: u.context.tokens ?? null,
+    window: u.context.window,
+    costUsd: u.cost?.usd ?? null,
+    limits: u.rateLimits.map(r => ({ kind: r.kind, pct: r.percentUsed })),
+  }) as const
+
 // ponytail: one counter for all agents, a main-loop skill loaded while a subagent's loads is skipped too; key by agent if that shows up
 let subagentSkills = 0
 
-// the moment each list became all done; cleared once something is open again
-const stampDone = async ($: EngineInterface) => {
-  const [todos, p, m, s] = await Promise.all([read($, tasks).then(t => Object.values(t ?? {})), read($, plan), read($, main), read($, sp)])
-  const tasksDone = allDone(shownTasks(todos, p))
-  const planDone = allDone(spTasks(p))
-  if (tasksDone === (typeof m?.doneAt === 'number') && planDone === (typeof s?.doneAt === 'number')) return
-  const at = await $.clock.now()
-  if (tasksDone !== (typeof m?.doneAt === 'number')) await setMain($, () => ({ doneAt: tasksDone ? at : null }))
-  if (planDone !== (typeof s?.doneAt === 'number')) await updateSp($, x => ({ ...x, doneAt: planDone ? at : null }))
-}
-
 const openPane = ($: EngineInterface) => $.ui.open({ id: PANE, title: 'Task Progress', columns: PANE_COLUMNS, rows: 8 })
+
+// re-read the active plan and its ledger: SDD's scripts append from Bash; a failed plan read keeps what the pane shows
+const readPlan = async ($: EngineInterface) => {
+  const path = (await read($, state))?.plan?.path
+  if (!path) return
+  const text = await $.fs.read(path).catch(() => null)
+  if (typeof text !== 'string') return
+  await emit($, { t: 'file', path, text })
+  const at = ledgerPath(path)
+  // a deleted ledger reads as empty, so its stale dispatches clear
+  if (at) await emit($, { t: 'file', path: at, text: (await $.fs.read(at).catch(() => null)) ?? '' })
+}
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'task-progress', description: 'Open or close the task progress pane', argumentHint: '[close]' })
     // a host without usage (headless, SDK) just starts without it
     const u = await $.session.usage().catch(() => null)
-    if (u) await setMain($, () => usageOf(u))
+    if (u) await emit($, usageOf(u))
     void openPane($).catch(() => undefined)
     return next(e)
   })
@@ -116,198 +87,100 @@ export const register: Register = on => {
   })
 
   on('classic.UserPromptSubmit', async ($, e, next) => {
-    if (e.permission_mode) await setMain($, () => ({ mode: e.permission_mode }))
+    if (e.permission_mode) await emit($, { t: 'mode', mode: e.permission_mode })
     return next(e)
   })
 
   on('turn.start', async ($, e, next) => {
-    await setMain($, () => ({ isRunning: true }))
-    await animate($)
+    await emit($, { t: 'turn.start', agentId: e.agentId })
     return next(e)
   })
 
   on('turn.complete', async ($, e, next) => {
     const done = await next(e)
-    if (e.agentId) {
-      const { agentId } = e
-      // an agent waiting on its own background work ends its turn but isn't done
-      const waiting = (await $.agent.list().catch(() => [])).find(a => a.id === agentId)?.status === 'waiting'
-      const at = await $.clock.now()
-      const status: AgentStatus = waiting ? 'waiting' : e.reason === 'error' || e.reason === 'aborted' ? 'failed' : 'done'
-      await update($, agents, all => {
-        const r = all?.[agentId]
-        const verdict = r?.role === 'review' && !waiting ? verdictOf(e.answer) : undefined
-        return r ? { ...all, [agentId]: { ...r, status, ...(waiting ? {} : { endedAt: at }), ...(verdict ? { verdict } : {}) } } : all
-      })
-    } else {
-      await setMain($, () => ({ isRunning: false }))
-      // brainstorming says out loud which path it takes
-      const path = pathFrom(e.answer)
-      if (path) await updateSp($, s => (s.current === 'brainstorm' ? { ...s, path: sizeUp(s.path, path) } : s))
-    }
-    await animate($)
+    const { agentId } = e
+    // an agent waiting on its own background work ends its turn but isn't done
+    const waiting = !!agentId && (await $.agent.list().catch(() => [])).find(a => a.id === agentId)?.status === 'waiting'
+    await emit($, { t: 'turn.end', agentId, answer: e.answer, failed: e.reason === 'error' || e.reason === 'aborted', waiting })
     return done
   })
 
   on('turn.step', async function* ($, e, next) {
-    const { agentId } = e
-    if (!agentId) await setMain($, m => ({ model: e.model, effort: String(e.effort ?? m.effort), steps: m.steps + 1 }))
-    else {
-      // a step after its end: the agent resumed once its background work came back
-      const r = (await read($, agents))?.[agentId]
-      if (r) {
-        const { endedAt: _, ...run } = r
-        await update($, agents, all => ({ ...all, [agentId]: { ...run, model: e.model, status: 'running' as const } }))
-        if (!live(r)) await animate($)
-      }
-    }
+    await emit($, { t: 'step', agentId: e.agentId, model: e.model, ...(e.effort !== undefined ? { effort: String(e.effort) } : {}) })
     return yield* next(e)
   })
 
   on('agent.spawn', async ($, e, next) => {
     const spawned = await next(e)
     const { agentId, model = '' } = spawned as { agentId?: string; model?: string }
-    if (agentId) {
-      const startedAt = await $.clock.now()
-      // while superpowers runs (until it finishes), its implementers and reviewers get a role
-      const s = await read($, sp)
-      const role = s?.stages.length && s.current !== 'finish' ? roleOf(e.description) : undefined
-      // the description alone: prompts quote plan text, Task numbers included
-      const taskN = role ? taskNOf(e.description) : undefined
-      // SDD's whole-branch review has no task: execution is over
-      if (role === 'review' && !taskN && s?.current === 'execute' && reviewReady(await read($, plan)))
-        await updateSp($, x => reach(x, 'review', startedAt))
-      // next after the highest still listed: one left running keeps its number
-      await update($, agents, all =>
-        trimAgents({
-          ...all,
-          [agentId]: { n: Math.max(0, ...Object.values(all ?? {}).map(r => r.n)) + 1, label: e.description || e.subagentType, model, startedAt, status: 'running', ...(role ? { role } : {}), ...(taskN ? { taskN } : {}) },
-        }),
-      )
-      await animate($)
-    }
+    if (agentId) await emit($, { t: 'agent.spawn', agentId, description: e.description ?? '', subagentType: e.subagentType ?? '', model })
     return spawned
   })
 
   on('skill.prompt', async ($, e, next) => {
-    const at = await $.clock.now()
-    const name = skillName(e.skill)
-    // the same skill twice in a row is one entry
-    await update($, skills, all => (all?.at(-1)?.name === name ? all : [...(all ?? []), { name, at }].slice(-MAX_SKILLS)))
-    const stage = stageOf(e.skill)
-    const extra = extraOf(e.skill)
     // a skill a subagent loads (`tool.call` knows the agent, this event doesn't) never moves the stage
-    const moves = stage && subagentSkills === 0 && (stage !== 'review' || reviewReady(await read($, plan)))
-    if (moves) await updateSp($, s => reach(s, stage, at))
-    else if (extra) await updateSp($, s => addExtra(s, extra))
+    await emit($, { t: 'skill', name: skillName(e.skill), fromSubagent: subagentSkills > 0 })
     return next(e)
   })
 
   on('session.measure', async ($, e, next) => {
-    await setMain($, () => usageOf(e))
+    await emit($, usageOf(e))
     return next(e)
   })
 
   on('session.compact', async ($, e, next) => {
     const done = await next(e)
-    if (!e.agentId && e.trigger !== 'precompute') await setMain($, m => ({ compactions: m.compactions + 1 }))
+    if (!e.agentId && e.trigger !== 'precompute') await emit($, { t: 'compact' })
     return done
   })
 
   on('tool.call', async ($, e, next) => {
-    let id = 0
-    if (!e.agentId) {
-      const row = { at: await $.clock.now(), label: activityOf(e as Parameters<typeof activityOf>[0]), status: 'running' as const }
-      await update($, activity, all => {
-        const pushed = pushActivity(all ?? [], row)
-        id = pushed.id
-        return pushed.list
-      })
-    }
-    const settle = async (status: Activity['status']) => {
-      if (id) await update($, activity, all => (all ?? []).map(a => (a.id === id ? { ...a, status } : a)))
-    }
+    const id = e.tool_use_id
+    const input = e as ToolInput
+    const call = { agentId: e.agentId, id, tool: e.tool, input }
+    await emit($, { t: 'tool.start', ...call })
     let ran: Awaited<ReturnType<typeof next>>
     const sub = e.tool === 'Skill' && !!e.agentId
     if (sub) subagentSkills++
     try {
       ran = await next(e)
     } catch (err) {
-      await settle('error')
+      await emit($, { t: 'tool.end', ...call, ok: false, edited: [] })
       throw err
     } finally {
       if (sub) subagentSkills--
     }
-    await settle(ran.deny !== undefined || ran.isError ? 'error' : 'ok')
+    const { file_path = '', notebook_path = '' } = e as { file_path?: string; notebook_path?: string }
+    const edited = e.tool === 'Edit' || e.tool === 'Write' ? [file_path] : e.tool === 'NotebookEdit' ? [notebook_path] : e.tool === 'Bash' ? editedOf(e.command, ran.result) : []
+    // next(e) ran before e.tool was narrowed, so result isn't typed per tool
+    const createdTaskId = e.tool === 'TaskCreate' ? (ran.result as BuiltinToolResults['TaskCreate'] | undefined)?.task?.id : undefined
+    const planFile = e.tool === 'ExitPlanMode' ? (ran.result as BuiltinToolResults['ExitPlanMode'] | undefined)?.filePath : undefined
+    const ok = ran.deny === undefined && !ran.isError
+    const effects = await emit($, { t: 'tool.end', ...call, ok, edited, ...(createdTaskId ? { createdTaskId } : {}), ...(planFile ? { planFile } : {}) })
+    if (!e.agentId) await readPlan($)
     if (ran.deny !== undefined || ran.isError) return ran
-
-    if (e.tool === 'TodoWrite') {
-      // TodoWrite replaces the whole list
-      const list = Object.fromEntries(e.todos.map((t, i) => [`todo:${i}`, { status: t.status, label: t.activeForm || t.content }]))
-      await update($, tasks, () => list)
-    } else if (e.tool === 'TaskCreate') {
-      // next(e) ran before e.tool was narrowed, so result isn't typed per tool
-      const id = (ran.result as BuiltinToolResults['TaskCreate'] | undefined)?.task?.id
-      const label = e.activeForm || e.subject
-      if (id) await update($, tasks, all => ({ ...all, [id]: { status: 'pending' as const, label, n: id } }))
-    } else if (e.tool === 'TaskUpdate') {
-      const { taskId, status, activeForm, subject } = e
-      await update($, tasks, all => {
-        const { [taskId]: prev, ...rest } = all
-        if (status === 'deleted' || !prev) return rest
-        return { ...rest, [taskId]: { ...prev, status: status ?? prev.status, label: activeForm || subject || prev.label } }
-      })
-    }
-
-    if (e.agentId) {
-      await stampDone($)
-      return ran
-    }
-    const planned = e.tool === 'ExitPlanMode' ? (ran.result as BuiltinToolResults['ExitPlanMode'] | undefined)?.filePath : undefined
-    // Read too: a plan written in an earlier session is executed by reading it
-    const written = (e.tool === 'Write' || e.tool === 'Edit' || e.tool === 'Read') && isPlanPath(e.file_path) ? e.file_path : undefined
-    const prev = await read($, plan)
-    const now = await $.clock.now()
-    const path = planned ?? written ?? prev?.path
-    const started = e.tool === 'Bash' && prev?.path ? startedOf(e.command, prev.path) : undefined
-    if (path) await refreshPlan($, path, started)
-    if ((e.tool === 'Write' || e.tool === 'Edit') && isSpecPath(e.file_path)) await updateSp($, s => reach(s, 'spec', now))
-    // a superpowers plan reaches the plan stage; one already reached is only re-read
-    const base = (p: string) => p.slice(p.lastIndexOf('/') + 1)
-    if (written && ledgerPath(written)) {
-      const fresh = !prev?.path || base(prev.path) !== base(written)
-      await updateSp($, s => (fresh || !s.stages.includes('plan') ? reach(s, 'plan', now) : s))
-    }
-    await stampDone($)
-    if (!planned) return ran
-    return { ...ran, context: [...(ran.context ?? []), `Mark each step done by ticking it (- [x], or 1. [x] for numbered steps) in ${planned} as you finish it.`] }
+    const context = [
+      ...effects.filter(x => x.kind === 'warn' && x.toolId === id).map(x => x.text),
+      ...(planFile ? [`Mark each step done by ticking it (- [x], or 1. [x] for numbered steps) in ${planFile} as you finish it.`] : []),
+    ]
+    return context.length ? { ...ran, context: [...(ran.context ?? []), ...context] } : ran
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const [m, todos, p, runs, used, acts, s, now] = await Promise.all([
-      read($, main).then(x => ({ ...DEFAULT_MAIN, ...x })),
-      read($, tasks).then(Object.values),
-      read($, plan),
-      read($, agents).then(a => Object.values(a ?? {}).map(withStatus)),
-      read($, skills).then(s => s ?? []),
-      read($, activity).then(a => a ?? []),
-      read($, sp).then(x => withAt({ ...EMPTY_SP, ...x })),
-      $.clock.now(),
-    ])
-    const list = shownTasks(todos, p)
+    const [s, now] = await Promise.all([read($, state), $.clock.now()])
+    const view = derive({ ...INIT, ...s }, now)
     const ui = $.ui.resolve(e)
     const { Box } = ui
     const f = frame()
-    // a background agent keeps the session working after the main turn ends
-    const v = { W: Math.max(30, e.props.bodyColumns), f, spin: SPINNER[f % SPINNER.length]!, busy: m.isRunning || runs.some(live), now }
+    const v = { W: Math.max(30, e.props.bodyColumns), f, spin: SPINNER[f % SPINNER.length]!, busy: view.busy, now }
     return (
       <Box flexDirection="column">
-        {mainPanel(ui, m, v)}
-        {s.stages.length > 0 ? spPanel(ui, s, spTasks(p), runs, v) : null}
-        {list.length > 0 ? tasksPanel(ui, list, m.doneAt, v) : null}
-        {runs.some(r => !r.role) ? agentsPanel(ui, runs, v) : null}
-        {used.length > 0 ? skillsPanel(ui, used.map(u => u.name), v) : null}
-        {acts.length > 0 ? activityPanel(ui, acts, v) : null}
+        {mainPanel(ui, view.main, v, VERSION)}
+        {view.sp.stages.length > 0 ? spPanel(ui, view.sp, view.spTasks, view.runs, v) : null}
+        {view.shown.length > 0 ? tasksPanel(ui, view.shown, view.main.doneAt, v) : null}
+        {view.runs.some(r => !r.role) ? agentsPanel(ui, view.runs, v) : null}
+        {view.skills.length > 0 ? skillsPanel(ui, view.skills, v) : null}
+        {view.activity.length > 0 ? activityPanel(ui, view.activity, v) : null}
       </Box>
     )
   })

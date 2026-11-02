@@ -1,11 +1,10 @@
-import type { Activity, AgentRun, Main, Plan, SkillUse, Sp, Task } from '../types'
+import type { Activity, AgentRun, Main, Plan, PlanState, S, Sp, Task } from '../types'
 import type { Ev } from './ev'
 import { filesOf, isPlanPath, keepCompleted, ledgerOwns, ledgerPath, logOf, parsePlan, startedOf } from './plan'
 import { addExtra, EMPTY_SP, extraOf, isSpecPath, pathFrom, reach, roleOf, sizeUp, stageOf, taskNOf, verdictOf } from './superpowers'
 
-/** `text`: the plan file as last read; `ledger`: its SDD ledger; `edited`: the last plan task a code edit touched */
-export type PlanState = { path: string; text: string; ledger?: string; tasks: Task[]; started?: string; edited?: string; warned: boolean }
-export type S = { main: Main; todos: Record<string, Task>; agents: Record<string, AgentRun>; skills: SkillUse[]; activity: Activity[]; sp: Sp; plan: PlanState }
+// in the contract, which must be self-contained
+export type { PlanState, S } from '../types'
 export type Effect = { kind: 'warn'; toolId: string; text: string }
 export type View = { main: Main; sp: Sp; spTasks: Task[]; shown: Task[]; runs: AgentRun[]; skills: string[]; activity: Activity[]; busy: boolean }
 
@@ -44,6 +43,47 @@ export const shownTasks = (todos: Task[], p: Plan | undefined) => {
   const pm = isSpPlan(p) ? [] : (p?.tasks ?? [])
   const planOpen = pm.some(t => t.status !== 'completed')
   return todos.some(t => t.status !== 'completed') || (todos.length > 0 && !planOpen) ? todos : pm
+}
+
+// a quote, a separator or redirect, or a bare word
+const TOKEN = /'([^']*)'|"([^"]*)"|(&&|\|\|?|;|\n|\d*>>?&?|&>>?)|([^\s'";&|<>]+)/g
+/** The files a Bash call changed: the engine's `bashEditDiff`, else `sed -i`, `>`, `>>` and `tee` targets in the command */
+export const editedOf = (command: string, result: unknown): string[] => {
+  const changed = (result as { bashEditDiff?: { changedFiles?: unknown } } | null | undefined)?.bashEditDiff?.changedFiles
+  if (Array.isArray(changed) && changed.every(f => typeof f === 'string')) return changed
+  const out: string[] = []
+  let words: string[] = []
+  let redirect: string | undefined
+  const flush = () => {
+    const [cmd, ...args] = words
+    words = []
+    if (cmd === 'tee') out.push(...args.filter(a => !a.startsWith('-')))
+    if (cmd !== 'sed' || !args.some(a => /^(-i|--in-place)/.test(a))) return
+    const pos: string[] = []
+    let script = false
+    for (let i = 0; i < args.length; i++) {
+      const a = args[i]!
+      if (a === '-i' && args[i + 1] === '') i++ // BSD's `-i ''`: no backup suffix
+      else if (a === '-e' || a === '-f') (script = true), i++
+      else if (!a.startsWith('-')) pos.push(a)
+    }
+    // without -e the first word is the script
+    out.push(...(script ? pos : pos.slice(1)))
+  }
+  for (const [, sq, dq, op, w] of command.matchAll(TOKEN)) {
+    if (op !== undefined) {
+      if (/^(&&|\|\|?|;|\n)$/.test(op)) flush()
+      else redirect = op
+      continue
+    }
+    const word = sq ?? dq ?? w!
+    // `2>`, `&>` and `>&` don't write a file of the work
+    if (redirect === undefined) words.push(word)
+    else if (redirect === '>' || redirect === '>>') out.push(word)
+    redirect = undefined
+  }
+  flush()
+  return out.filter(f => f && f !== '/dev/null')
 }
 
 export const WARN =
@@ -198,13 +238,13 @@ const next = (s: S, ev: Ev): S => {
       return fileAfter(s, ev)
     case 'tool.start':
       if (ev.agentId) return s
-      return { ...s, activity: pushActivity(s.activity, { at: ev.at, label: activityOf({ tool: ev.tool, ...ev.input }), status: 'running' }).list }
+      return { ...s, activity: pushActivity(s.activity, { at: ev.at, label: activityOf({ tool: ev.tool, ...ev.input }), status: 'running', toolId: ev.id }).list }
     case 'tool.end': {
       let activity = s.activity
       if (!ev.agentId) {
-        // ponytail: settles the latest running row with this label; key rows by tool id if parallel identical calls show the wrong status
+        // the row this call started; a call without an id settles the latest running row with its label
         const label = activityOf({ tool: ev.tool, ...ev.input })
-        const i = activity.findLastIndex(a => a.status === 'running' && a.label === label)
+        const i = activity.findLastIndex(a => a.status === 'running' && (ev.id ? a.toolId === ev.id : a.label === label))
         if (i >= 0) activity = activity.map((a, j) => (j === i ? { ...a, status: ev.ok ? 'ok' : 'error' } : a))
       }
       const done = { ...s, activity, todos: ev.ok ? todosAfter(s.todos, ev) : s.todos }

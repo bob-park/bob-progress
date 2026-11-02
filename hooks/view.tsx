@@ -1,6 +1,7 @@
 import type { EngineInterface } from 'claude-code'
 
 import type { Activity, AgentRun, Main, Sp, Stage, Task } from '../types'
+import { phaseOf } from './characters'
 import { fitTail, pipeline, stageOfRun, stageTimes } from './superpowers'
 import type { Step } from './superpowers'
 
@@ -9,6 +10,8 @@ export type UI = ReturnType<EngineInterface['ui']['resolve']>
 
 /** What every section draws with: the body width, the clock and whether anything works */
 export type Frame = { W: number; f: number; spin: string; busy: boolean; now: number }
+
+export { phaseOf }
 
 export const SPINNER = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
 export const FRAME_MS = 100
@@ -166,9 +169,6 @@ export const shimmer = (text: string, f: number) => {
   return runs
 }
 const TONE = { hi: '#fff3c4', mid: '#f0cf6e', base: 'yellow' } as const
-
-/** SDD names its fix loop in the label; the role says the rest */
-export const phaseOf = (r: AgentRun) => (/^fix\b/i.test(r.label) ? 'fix' : /^re-review/i.test(r.label) ? 're-review' : (r.role ?? ''))
 
 const spNow = (ui: UI, list: Task[], doneAt: number | null, runs: AgentRun[], v: Frame) => {
   const active = list.filter(t => t.status === 'in_progress')

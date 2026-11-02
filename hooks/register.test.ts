@@ -40,7 +40,11 @@ test('tasks panel shows done/total next to the bar and the current step below', 
     const ui = await $.ui.mount({ ...pane, surface } as never)
     expect((await ui.find({ text: /^ 1\/3$/ }))?.props.color).toBe('blue')
     expect(await ui.find({ text: /^ · 33%$/ })).toBeDefined()
-    expect((await ui.find({ text: /^▓+$/ }))?.props.color).toBe('yellow')
+    if (surface === 'terminal') expect((await ui.find({ text: /^▓+$/ }))?.props.color).toBe('yellow')
+    else {
+      expect((await ui.findAll({ type: 'Svg' })).filter(s => s.props.alt === '1/3')).toHaveLength(1)
+      expect(await ui.find({ text: /[█▓░]/ })).toBeUndefined()
+    }
     expect(await ui.find({ text: /^▸ Building$/ })).toBeDefined()
     await ui.unmount()
   }
@@ -906,4 +910,15 @@ test('a plain agent under AGENTS draws as a green-hatted Clawd on desktop', asyn
   const svg = (await ui.findAll({ type: 'Svg' })).find(s => s.props.alt === 'agent running')
   expect(String(svg?.props.source)).toContain('#1D9E75')
   expect(String(svg?.props.source)).toContain('#D97757')
+})
+
+test('on desktop the execute bar is an Svg that fits the row, on a wide or a narrow pane', async ($, on) => {
+  await toExecute($, on)
+  for (const bodyColumns of [46, 34]) {
+    const ui = await $.ui.mount({ ...pane, props: { ...pane.props, bodyColumns }, surface: 'desktop' } as never)
+    expect((await ui.findAll({ type: 'Svg' })).filter(s => /^\d+\/3$/.test(String(s.props.alt)))).toHaveLength(1)
+    expect(await ui.find({ text: /[█▓░]/ })).toBeUndefined()
+    expect(await ui.find({ text: / \d\/3/ })).toBeDefined()
+    await ui.unmount()
+  }
 })

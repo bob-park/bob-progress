@@ -21,7 +21,7 @@ The same reducer replays recorded sessions (see [Local replay](#local-replay)).
 
 While Claude or an agent works, spinners turn and a bright cell sweeps the in-progress part of each progress bar.
 
-The demo runs a mock superpowers cycle in the same session that is being watched (a notification-settings page: brainstorm → spec → plan → 10 plan tasks, one impl subagent each, kept under execute as the latest 5 and `… 5 more`; a whole-branch review that asks for fixes and a fix agent under review; then finish), sped up 8×:
+The demo records only the pane while a mock superpowers cycle runs in the same session (a notification-settings page: brainstorm with a builder check → spec → plan → 5 plan tasks, one impl subagent each plus task reviews, one review asking for fixes `[o_o]⚠` and a fix agent; a whole-branch review; then finish), sped up 5×:
 
 ![bob-progress demo](docs/images/task-progress.gif)
 

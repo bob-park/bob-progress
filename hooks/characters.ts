@@ -13,7 +13,7 @@ export const botKind = (r: AgentRun): BotKind => {
 }
 export const botStatus = (r: AgentRun): BotStatus => (r.status === 'failed' ? 'failed' : r.verdict === 'issues' ? 'issues' : r.status)
 
-export const STAGE_NAME: Record<Stage, string> = { brainstorm: '생각쟁이', spec: '서기', plan: '설계사', worktree: '정원사', execute: '건설공', review: '탐정', finish: '축하꾼' }
+export const STAGE_NAME: Record<Stage, string> = { brainstorm: '꿈꾸는 현자', spec: '필경사', plan: '대마법 건축가', worktree: '숲의 드루이드', execute: '망치 대장장이', review: '그림자 추적자', finish: '축제 음유시인' }
 
 /** Cells per character line: hat/body 9 + prop 3 */
 export const STAGE_W = 12

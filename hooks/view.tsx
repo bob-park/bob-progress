@@ -321,7 +321,7 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
       withPlan ? (
         <Text key="bar" wrap="truncate">{planBar(ui, plan, Math.max(3, rw - ` ${total}/${total}`.length), v)}</Text>
       ) : (
-        <Text key="name" dimColor>{STAGE_NAME[stage]}</Text>
+        <Text key="name" bold wrap="truncate">{STAGE_NAME[stage]}</Text>
       ),
       withPlan ? spNow(ui, plan, sp.doneAt, runs, { ...v, W: rw + 4 }) : null,
     ]

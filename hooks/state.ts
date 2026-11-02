@@ -101,13 +101,13 @@ const reviewReady = (p: Plan) => !isSpPlan(p) || allDone(p.tasks)
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1)
 const isOpen = (p: PlanState, n: string | undefined) => !!n && p.tasks.some(t => t.n === n && t.status !== 'completed')
 // rules 1–3: a dispatch, a task-start or an edit names the task, not just "the first open one"
-const tied = (p: PlanState) => logOf(p.ledger, 'dispatched').some(n => isOpen(p, n)) || isOpen(p, p.started) || isOpen(p, p.edited)
+export const tied = (p: PlanState) => logOf(p.ledger, 'dispatched').some(n => isOpen(p, n)) || isOpen(p, p.started) || isOpen(p, p.edited)
 // `/abs/repo/hooks/a.ts` is `hooks/a.ts`: paths match by trailing segments
 const samePath = (a: string, b: string) => {
   const [x, y] = [a, b].map(p => p.replace(/^\.\//, ''))
   return x === y || x!.endsWith(`/${y}`) || y!.endsWith(`/${x}`)
 }
-const isWorkflowFile = (path: string) => isPlanPath(path) || isSpecPath(path) || /\/\.superpowers\/sdd\/[^/]+\/progress\.md$/.test(path)
+export const isWorkflowFile = (path: string) => isPlanPath(path) || isSpecPath(path) || /\/\.superpowers\/sdd\/[^/]+\/progress\.md$/.test(path)
 
 // same plan: done stays done
 const reparse = (p: PlanState): PlanState => (p.text ? { ...p, tasks: keepCompleted(p.tasks, parsePlan(p.text, p.ledger, p.started, p.edited)) } : p)

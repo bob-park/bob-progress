@@ -43,19 +43,20 @@ export const stageFrame = (stage: Stage, f: number, on: boolean): Seg[][] => {
   return body.map((b, i) => [b, { text: p[i]!, color: s.pc }])
 }
 
+// two cells each: impl swaps its glyph, the others step their tool a cell over
 const BOT: Record<BotKind, { tool: [string, string]; c: string }> = {
-  impl: { tool: ['⚙', '✲'], c: '#378ADD' },
-  review: { tool: ['⌕', '⌕'], c: '#E0A030' },
-  fix: { tool: ['✚', '✚'], c: '#E5534B' },
-  agent: { tool: ['»', '»'], c: '#1D9E75' },
+  impl: { tool: ['⚙ ', '✲ '], c: '#378ADD' },
+  review: { tool: ['⌕ ', ' ⌕'], c: '#E0A030' },
+  fix: { tool: ['✚ ', ' ✚'], c: '#E5534B' },
+  agent: { tool: ['» ', ' »'], c: '#1D9E75' },
 }
 const FACE: Record<BotStatus, string> = { running: '•_•', waiting: '-_-', done: '^_^', failed: 'x_x', issues: 'o_o' }
 
 /** A one-line little Clawd: `▐•_•▌⚙`, the face on clay, its edges and tool in the role's colour */
 export const botFrame = (kind: BotKind, f: number, status: BotStatus): Seg[] => {
   const b = BOT[kind]
-  const [tool, c] = status === 'done' ? ['✓', 'success'] : status === 'failed' ? ['✗', 'error'] : status === 'issues' ? ['⚠', 'warning'] : status === 'waiting' ? ['z', b.c] : [b.tool[Math.floor(f / 3) % 2]!, b.c]
-  return [{ text: '▐', color: b.c }, { text: FACE[status], color: '#1F1E1D', bg: '#D97757' }, { text: '▌', color: b.c }, { text: `${tool} `, color: c }]
+  const [tool, c] = status === 'done' ? ['✓ ', 'success'] : status === 'failed' ? ['✗ ', 'error'] : status === 'issues' ? ['⚠ ', 'warning'] : status === 'waiting' ? ['z ', b.c] : [b.tool[Math.floor(f / 3) % 2]!, b.c]
+  return [{ text: '▐', color: b.c }, { text: FACE[status], color: '#1F1E1D', bg: '#D97757' }, { text: '▌', color: b.c }, { text: tool, color: c }]
 }
 
 // ---------- desktop pixel sprites (from the mockup's layer/clawd/STAGES/ROLES/bot) ----------

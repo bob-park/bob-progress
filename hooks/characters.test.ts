@@ -105,3 +105,7 @@ test('sprites swap their white and pale pixels on a light background; terminal p
   expect(src).toContain('class="pW"')
   expect(stageFrame('spec', 0, true)[2]![1]!.color).toBe('text')
 })
+
+test('botFrame: every running role moves its tool between frames', () => {
+  for (const k of ['impl', 'review', 'fix', 'agent'] as const) expect(botFrame(k, 3, 'running')).not.toEqual(botFrame(k, 0, 'running'))
+})

@@ -57,16 +57,24 @@ test('stageSvg: same input, same markup; animates only when on; honours reduced 
     expect(a.source.startsWith('<svg')).toBe(true)
     expect(a.source.length).toBeLessThan(131072)
     expect(a.source).toContain('prefers-reduced-motion')
-    expect(a.source).toContain('class="on')
-    expect(stageSvg(s, 4, false).source).not.toContain('class="on')
+    expect(a.source).toContain('<svg class="tp on"')
+    expect(stageSvg(s, 4, false).source).toContain('<svg class="tp"')
     expect([a.width, a.height]).toEqual([100, 60])
   }
 })
 
 test('botSvg: moves only while running; status marks for done, failed, issues', () => {
-  expect(botSvg('impl', 2, 'running').source).toContain('class="on')
-  for (const st of ['waiting', 'done', 'failed', 'issues'] as const) expect(botSvg('impl', 2, st).source).not.toContain('class="on')
+  expect(botSvg('impl', 2, 'running').source).toContain('<svg class="tp on"')
+  for (const st of ['waiting', 'done', 'failed', 'issues'] as const) expect(botSvg('impl', 2, st).source).toContain('<svg class="tp"')
   expect(botSvg('impl', 2, 'done').source).not.toEqual(botSvg('impl', 2, 'failed').source)
   expect(botSvg('impl', 2, 'issues').source).not.toEqual(botSvg('impl', 2, 'done').source)
   expect([botSvg('fix', 2, 'done').width, botSvg('fix', 2, 'done').height]).toEqual([28, 20])
+})
+
+test('sprite CSS is scoped under the root class, so an inlined svg leaks nothing', () => {
+  const css = stageSvg('execute', 1, true).source.match(/<style>([\s\S]*?)<\/style>/)![1]!
+  // every selector outside @keyframes/@media blocks; @media's inner rules too
+  const sels = css.replace(/@keyframes \w+\{(?:[^{}]*\{[^{}]*\})*\}/g, '').replace(/@media[^{]*\{/g, '').match(/[^{}]+(?=\{)/g)!
+  expect(sels.length).toBeGreaterThan(10)
+  for (const sel of sels) for (const part of sel.split(',')) expect(part.trim()).toMatch(/^\.tp[ .]/)
 })

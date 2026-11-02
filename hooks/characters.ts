@@ -98,27 +98,27 @@ const STAGE_PX: Record<Stage, string> = {
     + layer(['M...Y', '.....', '..L..'], 0, 1, 'c1') + layer(['..Y..', '.....', 'L...M'], 0, 3, 'c2')),
 }
 
-// The mockup's keyframes; motion only under the root's class="on"
-const CSS = `<style>g{transform-box:fill-box}.spark{opacity:0}
-.on .la{animation:st .5s steps(1) infinite}.on .lb{animation:st .5s steps(1) infinite -.25s}.on .bd{animation:bob .5s steps(1) infinite -.125s}
+// The mockup's keyframes, scoped under the root's class="tp" (an inlined svg leaks nothing); motion only under class="tp on"
+const CSS = `<style>.tp g{transform-box:fill-box}.tp .spark{opacity:0}
+.tp.on .la{animation:st .5s steps(1) infinite}.tp.on .lb{animation:st .5s steps(1) infinite -.25s}.tp.on .bd{animation:bob .5s steps(1) infinite -.125s}
 @keyframes st{50%{transform:translateY(-1px)}}@keyframes bob{50%{transform:translateY(1px)}}
-.on .swing{transform-origin:50% 100%;animation:swing .5s steps(1) infinite}@keyframes swing{0%{transform:rotate(-40deg)}50%{transform:rotate(30deg)}}
-.on .spark{animation:spark .5s steps(1) infinite}@keyframes spark{50%{opacity:1}}
-.on .scan{animation:scan 1.6s steps(1) infinite}@keyframes scan{0%{transform:translateX(0)}25%{transform:translateX(-3px)}50%{transform:translateX(-6px)}75%{transform:translateX(-3px)}}
-.on .b1{animation:blink 1.5s steps(1) infinite}.on .b2{animation:blink 1.5s steps(1) infinite .5s}.on .b3{animation:blink 1.5s steps(1) infinite 1s}
+.tp.on .swing{transform-origin:50% 100%;animation:swing .5s steps(1) infinite}@keyframes swing{0%{transform:rotate(-40deg)}50%{transform:rotate(30deg)}}
+.tp.on .spark{animation:spark .5s steps(1) infinite}@keyframes spark{50%{opacity:1}}
+.tp.on .scan{animation:scan 1.6s steps(1) infinite}@keyframes scan{0%{transform:translateX(0)}25%{transform:translateX(-3px)}50%{transform:translateX(-6px)}75%{transform:translateX(-3px)}}
+.tp.on .b1{animation:blink 1.5s steps(1) infinite}.tp.on .b2{animation:blink 1.5s steps(1) infinite .5s}.tp.on .b3{animation:blink 1.5s steps(1) infinite 1s}
 @keyframes blink{0%{opacity:1}33%{opacity:.15}}
-.on .quill{transform-origin:0% 100%;animation:quill .5s steps(1) infinite}@keyframes quill{50%{transform:rotate(-15deg) translateX(-1px)}}
-.on .w1{animation:show 2s steps(1) infinite}.on .w2{animation:show 2s steps(1) infinite .66s}.on .w3{animation:show 2s steps(1) infinite 1.33s}
+.tp.on .quill{transform-origin:0% 100%;animation:quill .5s steps(1) infinite}@keyframes quill{50%{transform:rotate(-15deg) translateX(-1px)}}
+.tp.on .w1{animation:show 2s steps(1) infinite}.tp.on .w2{animation:show 2s steps(1) infinite .66s}.tp.on .w3{animation:show 2s steps(1) infinite 1.33s}
 @keyframes show{0%{opacity:0}30%{opacity:1}}
-.on .pencil{animation:draw 1s steps(1) infinite}@keyframes draw{25%{transform:translate(-1px,1px)}50%{transform:translate(-2px,0)}75%{transform:translate(-1px,-1px)}}
-.on .grow{transform-origin:50% 100%;animation:grow 2s steps(1) infinite}@keyframes grow{0%{transform:scaleY(.25)}33%{transform:scaleY(.6)}66%{transform:scaleY(1)}}
-.on .wave{transform-origin:0% 50%;animation:wave .25s steps(1) infinite}@keyframes wave{50%{transform:skewY(15deg)}}
-.on .c1{animation:blink .8s steps(1) infinite}.on .c2{animation:blink .8s steps(1) infinite .4s}
-.on .hop{animation:hop .4s steps(1) infinite}@keyframes hop{50%{transform:translateY(-1px)}}.on .ant{animation:blink .8s steps(1) infinite}
-@media (prefers-reduced-motion: reduce){.on *{animation:none!important}}</style>`
+.tp.on .pencil{animation:draw 1s steps(1) infinite}@keyframes draw{25%{transform:translate(-1px,1px)}50%{transform:translate(-2px,0)}75%{transform:translate(-1px,-1px)}}
+.tp.on .grow{transform-origin:50% 100%;animation:grow 2s steps(1) infinite}@keyframes grow{0%{transform:scaleY(.25)}33%{transform:scaleY(.6)}66%{transform:scaleY(1)}}
+.tp.on .wave{transform-origin:0% 50%;animation:wave .25s steps(1) infinite}@keyframes wave{50%{transform:skewY(15deg)}}
+.tp.on .c1{animation:blink .8s steps(1) infinite}.tp.on .c2{animation:blink .8s steps(1) infinite .4s}
+.tp.on .hop{animation:hop .4s steps(1) infinite}@keyframes hop{50%{transform:translateY(-1px)}}.tp.on .ant{animation:blink .8s steps(1) infinite}
+@media (prefers-reduced-motion: reduce){.tp.on *{animation:none!important}}</style>`
 
 const svgDoc = (body: string, w: number, h: number, scale: number, on: boolean) =>
-  `<svg xmlns="http://www.w3.org/2000/svg"${on ? ' class="on"' : ''} viewBox="0 -1 ${w} ${h}" width="${w * scale}" height="${h * scale}" shape-rendering="crispEdges">${CSS}${body}</svg>`
+  `<svg class="tp${on ? ' on' : ''}" xmlns="http://www.w3.org/2000/svg" viewBox="0 -1 ${w} ${h}" width="${w * scale}" height="${h * scale}" shape-rendering="crispEdges">${CSS}${body}</svg>`
 
 /** Standalone SVG of a stage's Clawd; moves only when on */
 export const stageSvg = (stage: Stage, scale: number, on: boolean) =>

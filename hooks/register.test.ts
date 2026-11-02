@@ -850,7 +850,25 @@ test('the current stage draws its character card in the terminal', async ($, on)
   const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
   expect(await ui.find({ text: /▄███▄/ })).toBeDefined() // 건설공 안전모
   expect(await ui.find({ text: /▐▛███▜▌/ })).toBeDefined()
-  for (const t of await ui.findAll({ type: 'Text' })) expect([...t.text].length).toBeLessThanOrEqual(46)
+  for (const t of await ui.findAll({ type: 'Text' })) expect([...t.text].length).toBeLessThanOrEqual(42)
+})
+
+test('a non-execute stage card fits the terminal pane', async ($, on) => {
+  mock.clock(on)
+  on('skill.prompt', () => ({ text: '' }))
+  await $.skill.prompt({ skill: 'superpowers:brainstorming', text: '' })
+  const ui = await $.ui.mount({ ...pane, surface: 'terminal' } as never)
+  expect(await ui.find({ text: /생각쟁이/ })).toBeDefined()
+  for (const t of await ui.findAll({ type: 'Text' })) expect([...t.text].length).toBeLessThanOrEqual(42)
+})
+
+test('on desktop a done execute row beside its sprite keeps its count and time', async ($, on) => {
+  await toExecute($, on)
+  await $.skill.prompt({ skill: 'superpowers:finishing-a-development-branch', text: '' })
+  const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
+  const row = await ui.find({ text: /^✓ execute / })
+  expect(row?.text).toMatch(/ \d\/3 \d\d:\d\d$/)
+  expect([...row!.text].length).toBeLessThanOrEqual(46 - 4 - 4)
 })
 
 test('desktop draws stage and agent sprites as Svg with alt text', async ($, on) => {

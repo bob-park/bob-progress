@@ -346,17 +346,16 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
   }
   const row = (s: Step) => {
     if (carded(s)) return card(s)
-    const line = plainRow(s)
-    return Svg && s.state === 'done' ? (
+    if (!Svg || s.state !== 'done') return plainRow(s, v)
+    // the 1x sprite (25px ≈ 3 cells) and its gap take 4 cells from the row
+    return (
       <Box key={s.stage} flexDirection="row" gap={1}>
         <Svg {...stageSvg(s.stage, 1, false)} />
-        {line}
+        {plainRow(s, { ...v, W: v.W - 4 })}
       </Box>
-    ) : (
-      line
     )
   }
-  const plainRow = ({ stage, state }: Step) => {
+  const plainRow = ({ stage, state }: Step, v: Frame) => {
     const ms = times[stage]
     const time = ms === undefined ? '' : ` ${dur(ms)}`
     const color = STAGE_COLOR[state]

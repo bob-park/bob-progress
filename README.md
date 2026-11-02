@@ -32,7 +32,7 @@ The pane opens on session start. `/bob-progress` reopens it, `/bob-progress clos
 ## Install
 
 ```
-/plugin install bob-progress --marketplace bob-park/claude-task-progress
+/plugin install bob-progress --marketplace bob-park/bob-progress
 ```
 
 Answer `y` to add the marketplace, then pick a scope.

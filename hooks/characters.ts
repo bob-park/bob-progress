@@ -20,7 +20,7 @@ export const STAGE_W = 12
 /** Cells per bot glyph */
 export const BOT_W = 7
 
-const C = { clay: '#D97757', green: '#5fbf8f', yellow: '#f2c94c', mag: '#e056fd', blue: '#61afef', red: '#e5534b', fg: '#e8e6df', cyan: '#56b6c2', brown: '#c8a26b' }
+const C = { clay: '#D97757', green: '#5fbf8f', yellow: '#f2c94c', mag: '#e056fd', blue: '#61afef', red: '#e5534b', fg: 'text', cyan: '#56b6c2', brown: '#c8a26b' }
 type Look = { hat: [string, string]; props: string[][]; pc: string }
 // Frames from the mockup's TSTAGE
 const LOOK: Record<Stage, Look> = {
@@ -61,6 +61,8 @@ export const botFrame = (kind: BotKind, f: number, status: BotStatus): Seg[] => 
 // ---------- desktop pixel sprites (from the mockup's layer/clawd/STAGES/ROLES/bot) ----------
 const PX: Record<string, string> = { '#': '#D97757', K: '#1F1E1D', Y: '#F2C94C', y: '#B8901E', B: '#8B5A2B', G: '#A3A8AE', W: '#F5F3EE', w: '#B9B6AE', U: '#4A90D9', u: '#9CC3EE', P: '#9B6BD6', g: '#5FBF6F', T: '#D9B77E', R: '#E5534B', M: '#E056FD', L: '#9ED8F5' }
 
+const PALE = ['W', 'w', 'L', 'u']
+
 /** One rect per horizontal run of a colour; '.' is empty */
 const layer = (rows: string[], x: number, y: number, cls = '', over: Record<string, string> = {}) => {
   let s = ''
@@ -70,7 +72,9 @@ const layer = (rows: string[], x: number, y: number, cls = '', over: Record<stri
       const col = cs[i] === '.' ? undefined : (over[cs[i]!] ?? PX[cs[i]!])
       let n = 1
       while (col && i + n < cs.length && (over[cs[i + n]!] ?? PX[cs[i + n]!]) === col && cs[i + n] !== '.') n++
-      if (col) s += `<rect x="${x + i}" y="${y + j}" width="${n}" height="1" fill="${col}"/>`
+      // white and pale pixels carry a class, so a light background can darken them
+      const pale = !over[cs[i]!] && PALE.includes(cs[i]!) ? ` class="p${cs[i]}"` : ''
+      if (col) s += `<rect${pale} x="${x + i}" y="${y + j}" width="${n}" height="1" fill="${col}"/>`
       i += n
     }
   })
@@ -117,7 +121,8 @@ const CSS = `<style>.tp g{transform-box:fill-box}.tp .spark{opacity:0}
 .tp.on .c1{animation:blink .8s steps(1) infinite}.tp.on .c2{animation:blink .8s steps(1) infinite .4s}
 .tp.on .hop{animation:hop .4s steps(1) infinite}@keyframes hop{50%{transform:translateY(-1px)}}
 .tp.on .tool{transform-origin:0% 100%;animation:wig .6s steps(1) infinite}@keyframes wig{50%{transform:rotate(-20deg)}}
-@media (prefers-reduced-motion: reduce){.tp.on *{animation:none!important}}</style>`
+@media (prefers-reduced-motion: reduce){.tp.on *{animation:none!important}}
+@media (prefers-color-scheme: light){.tp .pW{fill:#4a4843}.tp .pw{fill:#7d7a72}.tp .pL{fill:#2f6f9f}.tp .pu{fill:#4a7fb5}}</style>`
 
 const svgDoc = (body: string, w: number, h: number, scale: number, on: boolean) =>
   `<svg class="tp${on ? ' on' : ''}" xmlns="http://www.w3.org/2000/svg" viewBox="0 -1 ${w} ${h}" width="${w * scale}" height="${h * scale}" shape-rendering="crispEdges">${CSS}${body}</svg>`

@@ -98,3 +98,10 @@ test('only moving sprites draw as an interactive frame', () => {
   expect(stageSvg('execute', 4, true).isInteractive).toBe(true)
   expect(stageSvg('execute', 4, false).isInteractive).toBeUndefined()
 })
+
+test('sprites swap their white and pale pixels on a light background; terminal props follow the theme text', () => {
+  const src = stageSvg('spec', 4, false).source
+  expect(src).toContain('prefers-color-scheme: light')
+  expect(src).toContain('class="pW"')
+  expect(stageFrame('spec', 0, true)[2]![1]!.color).toBe('text')
+})

@@ -38,9 +38,9 @@ test('tasks panel shows done/total next to the bar and the current step below', 
   await write([todo('a', 'completed'), todo('Build', 'in_progress'), todo('c', 'pending')])
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...pane, surface } as never)
-    expect((await ui.find({ text: /^ ?1\/3$/ }))?.props.color).toBe('blue')
+    expect((await ui.find({ text: /^ ?1\/3$/ }))?.props.color).toBe('suggestion')
     expect(await ui.find({ text: /^ · 33%$/ })).toBeDefined()
-    if (surface === 'terminal') expect((await ui.find({ text: /^▓+$/ }))?.props.color).toBe('yellow')
+    if (surface === 'terminal') expect((await ui.find({ text: /^▓+$/ }))?.props.color).toBe('warning')
     else {
       expect((await ui.findAll({ type: 'Box' })).filter(b => b.props.backgroundColor).map(b => b.props.backgroundColor)).toEqual(['success', 'warning', 'inactive'])
       expect((await ui.findAll({ type: 'Svg' })).filter(s => /^\d+\/\d+$/.test(String(s.props.alt)))).toHaveLength(0)
@@ -980,4 +980,16 @@ test('on desktop a bar not started or all done draws one coloured box', async ($
   expect(await fills()).toEqual(['inactive'])
   await write([todo('a', 'completed'), todo('b', 'completed')])
   expect(await fills()).toEqual(['success'])
+})
+
+test('superpowers, tasks and agents paint with theme keys, so a light background reads too', async ($, on) => {
+  await toExecute($, on)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...pane, surface } as never)
+    // main, SKILLS and ACTIVITY are out of scope; in this state only the SKILLS title paints a raw colour there
+    const raw = (await ui.findAll({ type: 'Text' })).filter(t => ['yellow', 'green', 'blue', 'red'].includes(String(t.props.color)) && t.text !== 'SKILLS')
+    expect(raw.map(t => `${t.text}:${t.props.color}`)).toEqual([])
+    for (const b of await ui.findAll({ type: 'Box' })) expect(['yellow', 'green']).not.toContain(String(b.props.borderColor))
+    await ui.unmount()
+  }
 })

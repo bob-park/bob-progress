@@ -164,7 +164,7 @@ const barLine = (ui: UI, key: string, before: JSX.Element[], list: Task[], barW:
         <Svg {...barSvg(done, active, list.length, v.busy)} />
       </Box>
       <Text wrap="truncate">
-        <Text bold color="blue">{` ${done}/${list.length}`}</Text>
+        <Text bold color="blue">{`${done}/${list.length}`}</Text>
         {after}
       </Text>
     </Box>
@@ -393,7 +393,8 @@ export const spPanel = (ui: UI, sp: Sp, plan: Task[], runs: AgentRun[], v: Frame
         barLine(
           ui,
           stage,
-          [<Text key="head" color={color} bold={state === 'current'} dimColor={state === 'todo'}>{`${head} `}</Text>],
+          // the terminal pads the head itself; a Svg row is spaced by its gap
+          [<Text key="head" color={color} bold={state === 'current'} dimColor={state === 'todo'}>{Svg ? head : `${head} `}</Text>],
           plan,
           barW,
           [<Text key="time" dimColor={state !== 'current'}>{time}</Text>],

@@ -38,7 +38,7 @@ test('tasks panel shows done/total next to the bar and the current step below', 
   await write([todo('a', 'completed'), todo('Build', 'in_progress'), todo('c', 'pending')])
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...pane, surface } as never)
-    expect((await ui.find({ text: /^ 1\/3$/ }))?.props.color).toBe('blue')
+    expect((await ui.find({ text: /^ ?1\/3$/ }))?.props.color).toBe('blue')
     expect(await ui.find({ text: /^ · 33%$/ })).toBeDefined()
     if (surface === 'terminal') expect((await ui.find({ text: /^▓+$/ }))?.props.color).toBe('yellow')
     else {
@@ -873,8 +873,8 @@ test('on desktop a done execute row beside its sprite keeps its count and time',
   await toExecute($, on)
   await $.skill.prompt({ skill: 'superpowers:finishing-a-development-branch', text: '' })
   const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
-  const row = await ui.find({ text: /^✓ execute [^│]*$/ })
-  expect(row?.text).toMatch(/ \d\/3 \d\d:\d\d$/)
+  const row = await ui.find({ text: /^✓ execute ?[^│]*$/ })
+  expect(row?.text).toMatch(/ ?\d\/3 \d\d:\d\d$/)
   expect([...row!.text].length).toBeLessThanOrEqual(46 - 4 - 4)
 })
 
@@ -918,7 +918,7 @@ test('on desktop the execute bar is an Svg that fits the row, on a wide or a nar
     const ui = await $.ui.mount({ ...pane, props: { ...pane.props, bodyColumns }, surface: 'desktop' } as never)
     expect((await ui.findAll({ type: 'Svg' })).filter(s => /^\d+\/3$/.test(String(s.props.alt)))).toHaveLength(1)
     expect(await ui.find({ text: /[█▓░]/ })).toBeUndefined()
-    expect(await ui.find({ text: / \d\/3/ })).toBeDefined()
+    expect(await ui.find({ text: /\d\/3/ })).toBeDefined()
     await ui.unmount()
   }
 })
@@ -940,6 +940,14 @@ test('on desktop a done execute row gives its bar room to stretch', async ($, on
   await toExecute($, on)
   await $.skill.prompt({ skill: 'superpowers:finishing-a-development-branch', text: '' })
   const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
-  const grow = (await ui.findAll({ type: 'Box' })).filter(b => b.props.flexGrow === 1 && /^✓ execute [^│]*$/.test(b.text))
+  const grow = (await ui.findAll({ type: 'Box' })).filter(b => b.props.flexGrow === 1 && /^✓ execute ?[^│]*$/.test(b.text))
   expect(grow.length).toBeGreaterThan(0)
+})
+
+test('on desktop the bar row is spaced by its gap alone, no padding spaces', async ($, on) => {
+  await toExecute($, on)
+  await $.skill.prompt({ skill: 'superpowers:finishing-a-development-branch', text: '' })
+  const ui = await $.ui.mount({ ...pane, surface: 'desktop' } as never)
+  expect(await ui.find({ type: 'Text', text: /^✓ execute$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^\d\/3 \d\d:\d\d$/ })).toBeDefined()
 })

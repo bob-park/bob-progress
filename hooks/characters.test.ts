@@ -109,3 +109,16 @@ test('barSvg: segments by share, no empty rect, stable, moves only with active w
   expect(barSvg(7, 0, 7, false).source).not.toContain('#3a3833')
   for (const s of [barSvg(0, 0, 7, false), barSvg(7, 0, 7, true)]) expect(s.source).not.toMatch(/NaN|width="0"/)
 })
+
+test('barSvg: coordinates stay rounded to 2 places', () => {
+  expect(barSvg(2, 4, 7, true).source).not.toMatch(/\d\.\d{3,}/)
+})
+
+test('barSvg: an active part too thin to sweep draws still, without a frame', () => {
+  expect(barSvg(0, 1, 30, true).isInteractive).toBeUndefined()
+  expect(barSvg(0, 1, 30, true).source).not.toContain('class="sw"')
+})
+
+test('barSvg: an idle bar carries no style', () => {
+  expect(barSvg(3, 0, 7, false).source).not.toContain('<style>')
+})

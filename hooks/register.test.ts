@@ -4,10 +4,10 @@ import { WARN } from './state'
 import { doneTime, dur, phaseOf, shimmer } from './view'
 
 const pane = {
-  plugin: 'task-progress',
+  plugin: 'bob-progress',
   component: 'Pane' as const,
-  requestId: 'task-progress',
-  props: { title: 'Task Progress', isFocused: false, bodyColumns: 46, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 20 }, view: {} },
+  requestId: 'bob-progress',
+  props: { title: 'Bob Progress', isFocused: false, bodyColumns: 46, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 20 }, view: {} },
 }
 
 /** An agent row's bit and its padding, read as `[^_^]✓ ` */

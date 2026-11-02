@@ -102,7 +102,7 @@ export const editedOf = (command: string, result: unknown): string[] => {
 }
 
 export const WARN =
-  "task-progress: this edit isn't tied to a plan task. Before working on a task, run `task-start <plan> <N>` (executing-plans) or ledger `Task <N>: dispatched` (subagent-driven-development)."
+  "bob-progress: this edit isn't tied to a plan task. Before working on a task, run `task-start <plan> <N>` (executing-plans) or ledger `Task <N>: dispatched` (subagent-driven-development)."
 
 /** A main-loop call that changed files: Edit/Write/NotebookEdit, or Bash */
 export const isEdit = (ev: Ev): ev is Extract<Ev, { t: 'tool.end' }> => ev.t === 'tool.end' && !ev.agentId && ev.ok && ev.edited.length > 0

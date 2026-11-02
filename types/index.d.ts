@@ -64,7 +64,7 @@ export type S = { main: Main; todos: Record<string, Task>; agents: Record<string
 
 declare module 'claude-code' {
   interface PluginState {
-    'task-progress': {
+    'bob-progress': {
       state: S
     }
   }

@@ -1,4 +1,4 @@
-# claude-task-progress
+# bob-progress
 
 Claude Code mod: a pane docked to the right of the transcript that monitors any session, with a separate section for the superpowers workflow. Sections with nothing to show stay hidden.
 
@@ -23,16 +23,16 @@ While Claude or an agent works, spinners turn and a bright cell sweeps the in-pr
 
 The demo runs a mock superpowers cycle in the same session that is being watched (a notification-settings page: brainstorm → spec → plan → 10 plan tasks, one impl subagent each, kept under execute as the latest 5 and `… 5 more`; a whole-branch review that asks for fixes and a fix agent under review; then finish), sped up 8×:
 
-![task-progress demo](docs/images/task-progress.gif)
+![bob-progress demo](docs/images/task-progress.gif)
 
-![task-progress screenshot](docs/images/task-progress.png)
+![bob-progress screenshot](docs/images/task-progress.png)
 
-The pane opens on session start. `/task-progress` reopens it, `/task-progress close` closes it. In a non-fullscreen terminal it sits inline above the prompt instead.
+The pane opens on session start. `/bob-progress` reopens it, `/bob-progress close` closes it. In a non-fullscreen terminal it sits inline above the prompt instead.
 
 ## Install
 
 ```
-/plugin install task-progress --marketplace bob-park/claude-task-progress
+/plugin install bob-progress --marketplace bob-park/claude-task-progress
 ```
 
 Answer `y` to add the marketplace, then pick a scope.
